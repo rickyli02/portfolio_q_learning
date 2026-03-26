@@ -46,3 +46,10 @@ Project-management feedback:
 
 Recommendation:
 - Fix the stale docs, `log_dir`, run-directory collision risk, and logger behavior before building the config/data/environment layers. Those are small fixes now and become annoying sources of non-reproducible behavior later.
+
+
+[Ricky | 2026-03-26 17:32 EDT]
+- Ricky `.claude/` and `.codex/` will now be repo-owned.
+- Codex has now been given permission to edit `.claude/CLAUDE.md` and `.claude/commands` folder for updating. I think in general the agents should refrain from editing their own files. Codex will in general act as the project manager and help guide claude in the specific implementation tasks.
+- Claude `.claude/settings.json` and `.codex/config.toml` should only be edited by user. If necessary, request edits to those files through the `dialogue.txt` here.
+- Agents are encouraged to create memory .md or .txt files in `claude_files` and `codex_files`. Human users will occasionally inspect the reasoning and set-ups. Planning and reasoning are encouraged.

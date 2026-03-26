@@ -1,7 +1,5 @@
 references/papers/*.pdf
 .venv/
-.claude/
-.codex/
 
 # Python
 __pycache__/

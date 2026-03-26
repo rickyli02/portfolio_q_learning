@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(pwd:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(cd:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git checkout:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(source .venv/bin/activate)", // Allows activating virtual environments
+      "Bash(python3.11 -m venv .venv)",  // Creates virtual environments
+      "Bash(.venv/bin/pip install -q -r requirements.txt)", // Installs dependencies
+      "Bash(cd '/Users/ricky/Desktop/Columbia Academics/Project/portfolio_q_learning/portfolio_q_learning' && git status)"
+    ],
+    "ask": [
+      "Bash(wget *)",            // Pauses file downloads
+      "Bash(find *)",            // Pauses broad file searching
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(git pull *)",        
+      "Bash(git clone *)",
+      "Bash(rm *)",              // Asks for deletion
+    ],       
+    "deny": [
+      "Bash(chmod *)",           // Blocks permission changes
+      "Bash(chown *)",           // Blocks ownership changes
+      "Bash(curl *)",            // Blocks outbound network requests
+      "Bash(sed *)",             // Blocks file modification
+      "Bash(awk *)",             // Blocks file processing
+      "Read(**/.env)",           // Blocks reading environment variables [14]
+      "Read(**/secrets/*)"       // Blocks reading secrets
+    ]
+  },
+  "attribution": {
+   "commit": "Generated with Claude Code", 
+   "pr": ""
+  }
+}

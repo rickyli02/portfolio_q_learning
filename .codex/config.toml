@@ -233,7 +233,9 @@ writable_roots = [
     "codex_files",
     "README.md",
     "references",
-    "shared_agent_files"
+    "shared_agent_files",
+    ".claude/CLAUDE.md",
+    ".claude/commands",
 ]
 # Allow outbound network access inside the sandbox. Default: false
 network_access = false
