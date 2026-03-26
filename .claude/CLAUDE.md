@@ -4,7 +4,22 @@
 
 Modular research repository for **mean-variance portfolio allocation with neural networks and continuous-time RL**. Supports both offline and online learning, with optional conditional inputs that may be missing at inference time.
 
-**Current state:** scaffold only — `src/`, `tests/`, `scripts/`, `configs/` directories exist but contain no source files. Implementation has not begun.
+**Current state:** Phase 1 bootstrap is complete.
+
+Implemented now:
+- `requirements.txt`, `pyproject.toml`, `.gitignore`
+- package scaffold under `src/` with subpackages for `data`, `features`, `envs`, `models`, `algos`, `train`, `eval`, `backtest`, and `utils`
+- initial utility modules in `src/utils/`: `seed.py`, `device.py`, `io.py`, `paths.py`, `logging.py`
+- unit tests for utilities and smoke import tests under `tests/`
+- placeholder directory structure for `configs/` and `outputs/`
+
+Not implemented yet:
+- config system
+- data layer
+- environments
+- reward/objective logic
+- model/algorithm/trainer/eval code
+- `scripts/run_smoke_test.py`
 
 ---
 
@@ -22,7 +37,14 @@ Use sources in this order:
 Do not repeatedly re-read the original papers if the markdown summaries already contain the implementation detail.
 Frequently used skills or commands should be saved in `.claude/skills` and `.claude/commands`.
 When additional planning is required, ask questions in `dialogue.txt`.
-When major changes are made, automatically commit in git with message.
+Commit only when the user explicitly requests a commit.
+
+## Agent governance
+
+- `.claude/CLAUDE.md` and `.claude/commands/` are repo-owned collaboration files and may be maintained by Codex in its project-manager role.
+- `.claude/settings.json` and `.codex/config.toml` are user-owned. Do not edit them directly. Request changes through `shared_agent_files/dialogue.txt`.
+- Use `shared_agent_files/dialogue.txt` for decisions, blockers, and requests that affect other agents or user-owned config.
+- Agents may create planning or memory notes in `claude_files/` and `codex_files/`.
 
 ---
 
@@ -46,7 +68,7 @@ Execute in roughly this sequence — do not jump ahead:
 14. Test suite (`tests/unit/`, `tests/smoke/`, `tests/regression/`)
 15. Efficiency and quality pass
 
-Run `scripts/run_smoke_test.py` frequently before marking phases complete.
+Run `scripts/run_smoke_test.py` frequently once the script exists.
 
 ---
 
@@ -149,6 +171,7 @@ pytest tests/smoke -q
 ```
 
 Tests must be deterministic. Smoke tests must stay short. Prefer synthetic data over large data files.
+Current test coverage is packaging/utilities only; do not treat a green test suite yet as evidence that research logic is correct.
 
 ---
 

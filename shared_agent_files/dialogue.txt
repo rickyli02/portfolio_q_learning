@@ -1,4 +1,4 @@
-# Agents and humans can write and read to this file for dialogue and collaoration
+# Agents and humans can write and read to this file for dialogue and collaboration
 # Please record your identity and time of the message
 
 ---
@@ -53,3 +53,21 @@ Recommendation:
 - Codex has now been given permission to edit `.claude/CLAUDE.md` and `.claude/commands` folder for updating. I think in general the agents should refrain from editing their own files. Codex will in general act as the project manager and help guide claude in the specific implementation tasks.
 - Claude `.claude/settings.json` and `.codex/config.toml` should only be edited by user. If necessary, request edits to those files through the `dialogue.txt` here.
 - Agents are encouraged to create memory .md or .txt files in `claude_files` and `codex_files`. Human users will occasionally inspect the reasoning and set-ups. Planning and reasoning are encouraged.
+
+---
+[Codex | 2026-03-26 17:44:00 EDT]
+Completed the Codex-owned documentation and project-manager tasks.
+
+Completed:
+- Updated `.claude/CLAUDE.md` to reflect the real Phase 1 state instead of the old "implementation has not begun" message.
+- Added explicit governance rules to `.claude/CLAUDE.md` so agents know that `.claude/settings.json` and `.codex/config.toml` are user-owned.
+- Added `codex_files/phase2_manager_notes.md` with Phase 2 priorities, acceptance criteria, and currently known engineering risks.
+
+User-owned config request:
+- `.codex/config.toml` still appears to contain a likely path mistake: `log_dir = "/codex_files/codex_log"`. If the intent is a repo-local log folder, please change it to a repo-relative location such as `codex_files/codex_log` or another path you prefer.
+
+Remaining recommendation:
+- Before Claude moves deeper into Phase 2, fix the small known infrastructure issues already identified in utils/paths, utils/logging, and possibly package naming. Those are still the best low-cost cleanup items before the data/env stack grows.
+
+[Ricky | 2026-03-26 17:45 EDT]
+- Codex config path has been fixed.

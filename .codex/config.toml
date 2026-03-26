@@ -36,7 +36,7 @@ model_provider = "openai"
 # tool_output_token_limit = 12000     # tokens stored per tool output
 # model_catalog_json = "/absolute/path/to/models.json" # optional startup-only model catalog override
 # background_terminal_max_timeout = 300000 # ms; max empty write_stdin poll window (default 5m)
-log_dir = "/codex_files/codex_log" # directory for Codex logs; default: "$CODEX_HOME/log"
+log_dir = "codex_files/codex_log" # directory for Codex logs; default: "$CODEX_HOME/log"
 # sqlite_home = "/absolute/path/to/codex-state" # optional SQLite-backed runtime state directory
 
 ################################################################################
