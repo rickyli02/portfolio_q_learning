@@ -2,3 +2,37 @@ references/papers/*.pdf
 .venv/
 .claude/
 .codex/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Outputs
+outputs/
+checkpoints/
+logs/
+
+# Temporary files
+*.tmp
+*.swp
