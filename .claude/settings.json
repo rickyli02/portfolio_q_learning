@@ -19,7 +19,6 @@
       "Bash(source .venv/bin/activate)", // Allows activating virtual environments
       "Bash(python3.11 -m venv .venv)",  // Creates virtual environments
       "Bash(.venv/bin/pip install -q -r requirements.txt)", // Installs dependencies
-      "Bash(cd '/Users/ricky/Desktop/Columbia Academics/Project/portfolio_q_learning/portfolio_q_learning' && git status)"
     ],
     "ask": [
       "Bash(wget *)",            // Pauses file downloads

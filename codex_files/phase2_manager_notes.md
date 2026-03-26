@@ -37,3 +37,5 @@ Owner: Codex
 
 - Do not edit `.claude/settings.json` or `.codex/config.toml` directly.
 - Route requests for user-owned config changes through `shared_agent_files/dialogue.txt`.
+- Keep Ricky's dialogue guidance copied into persistent notes under `codex_files/`.
+- Archive `shared_agent_files/dialogue.txt` when it becomes too long or when the project clearly moves to a new stage.
