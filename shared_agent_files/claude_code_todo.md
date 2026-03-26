@@ -6,6 +6,16 @@ The project goal is to build a **modular, testable, memory-conscious repository 
 
 This file should be treated as an implementation roadmap, not a paper note.
 
+## Current snapshot
+
+As of 2026-03-26:
+
+- Phase 1 scaffold exists.
+- Phase 2 config/data foundation exists.
+- A bounded Phase 2 bugfix cleanup was completed and is awaiting/under Codex review in dialogue.
+- Phase 3 has not been approved. Do not start `src/features/` or `src/envs/` work without a formal GO task assignment in `shared_agent_files/dialogue.txt`.
+- Use `.claude/CLAUDE.md` only for stable baseline rules. Use this file plus dialogue for current-state details.
+
 ---
 
 ## 0. Primary reference hierarchy
@@ -13,20 +23,20 @@ This file should be treated as an implementation roadmap, not a paper note.
 Claude Code should use the following sources in this order:
 
 1. **Codebase files already created in this repository**
-2. **Markdown references in `/reference/`**
+2. **Markdown references in `/references/`**
 3. **Original papers in `/references/papers/` only when necessary**
 
 ### Primary markdown references
 Read these first before querying any paper PDFs:
 
-- `/reference/portfolio_mv_papers_algorithm_summary.md`
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_algorithm_summary.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ### Secondary repository references
 Use these when present:
 
 - `/README.md`
-- `/reference/README_portfolio_management_nn.md` if it exists in the repo
+- `/references/README_portfolio_management_nn.md` if it exists in the repo
 - config files
 - existing test files
 - docstrings and type hints already present in the codebase
@@ -119,10 +129,9 @@ repo_root/
 ├── pyproject.toml
 ├── .gitignore
 ├── .venv/                      # local environment, ignored by git
-├── reference/
-│   ├── portfolio_mv_papers_algorithm_summary.md
-│   └── portfolio_mv_papers_companion_implementation_notes.md
 ├── references/
+│   ├── portfolio_mv_papers_algorithm_summary.md
+│   ├── portfolio_mv_papers_companion_implementation_notes.md
 │   └── papers/
 ├── configs/
 │   ├── base/
@@ -199,8 +208,8 @@ Create the initial repository structure and packaging setup.
 - repository can be installed or used in editable local mode.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_algorithm_summary.md`
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_algorithm_summary.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 

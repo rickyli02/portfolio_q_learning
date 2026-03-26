@@ -1,7 +1,7 @@
 """Fixed-size replay buffer for off-policy RL training.
 
-The buffer stores transitions as pre-allocated tensors and wraps around when
-full (ring-buffer semantics).  Sampling is uniform random without replacement.
+The buffer stores transitions in a list and wraps around when full (ring-buffer
+semantics).  Sampling is uniform random without replacement.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class ReplayBuffer:
             self.add(t)
 
     def sample(self, batch_size: int) -> Batch:
-        """Sample ``batch_size`` transitions uniformly at random.
+        """Sample ``batch_size`` transitions uniformly at random without replacement.
 
         Raises:
             ValueError: If the buffer contains fewer transitions than
@@ -64,7 +64,7 @@ class ReplayBuffer:
             raise ValueError(
                 f"Cannot sample {batch_size} transitions from buffer of size {n}"
             )
-        indices = torch.randint(0, n, (batch_size,)).tolist()
+        indices = torch.randperm(n)[:batch_size].tolist()
         selected = [self._buffer[i] for i in indices]
         return collate_transitions(selected)
 

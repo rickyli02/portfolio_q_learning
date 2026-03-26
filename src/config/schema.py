@@ -196,6 +196,59 @@ class ExperimentConfig:
     eval: EvalConfig = field(default_factory=EvalConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
+    def validate(self) -> None:
+        """Raise ``ValueError`` if any field holds an obviously invalid value.
+
+        Called automatically by ``load_config`` after YAML overrides are applied.
+        """
+        # --- env ---
+        if self.env.horizon <= 0:
+            raise ValueError(f"env.horizon must be > 0, got {self.env.horizon}")
+        if self.env.n_steps < 1:
+            raise ValueError(f"env.n_steps must be >= 1, got {self.env.n_steps}")
+        if self.env.initial_wealth <= 0:
+            raise ValueError(
+                f"env.initial_wealth must be > 0, got {self.env.initial_wealth}"
+            )
+        n = self.env.assets.n_risky
+        if n < 1:
+            raise ValueError(f"env.assets.n_risky must be >= 1, got {n}")
+        if len(self.env.mu) != n:
+            raise ValueError(
+                f"len(env.mu)={len(self.env.mu)} must equal env.assets.n_risky={n}"
+            )
+        if len(self.env.sigma) != n or any(len(row) != n for row in self.env.sigma):
+            raise ValueError(
+                f"env.sigma must be {n}x{n} to match env.assets.n_risky={n}"
+            )
+        # --- reward ---
+        if self.reward.entropy_temp < 0:
+            raise ValueError(
+                f"reward.entropy_temp must be >= 0, got {self.reward.entropy_temp}"
+            )
+        if self.reward.mv_penalty_coeff <= 0:
+            raise ValueError(
+                f"reward.mv_penalty_coeff must be > 0, got {self.reward.mv_penalty_coeff}"
+            )
+        if not (0 < self.reward.discount <= 1.0):
+            raise ValueError(
+                f"reward.discount must be in (0, 1], got {self.reward.discount}"
+            )
+        # --- optim ---
+        if self.optim.batch_size < 1:
+            raise ValueError(
+                f"optim.batch_size must be >= 1, got {self.optim.batch_size}"
+            )
+        if self.optim.n_epochs < 1:
+            raise ValueError(
+                f"optim.n_epochs must be >= 1, got {self.optim.n_epochs}"
+            )
+        if self.optim.replay_buffer_size < 1:
+            raise ValueError(
+                f"optim.replay_buffer_size must be >= 1, "
+                f"got {self.optim.replay_buffer_size}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # YAML loading helpers
@@ -231,4 +284,5 @@ def load_config(path: Path | str) -> ExperimentConfig:
         raw: dict = yaml.safe_load(fh) or {}
     cfg = ExperimentConfig()
     _apply_overrides(cfg, raw)
+    cfg.validate()
     return cfg

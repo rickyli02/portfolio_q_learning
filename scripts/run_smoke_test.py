@@ -4,9 +4,13 @@
 Loads the smoke config, exercises the config system, data layer, and GBM
 synthetic generation, then exits with a non-zero status on any failure.
 
-Usage:
+Usage (must be run inside the project .venv):
+    source .venv/bin/activate
     python scripts/run_smoke_test.py
     python scripts/run_smoke_test.py --config configs/tests/smoke.yaml
+
+Or without activating:
+    .venv/bin/python scripts/run_smoke_test.py
 """
 
 import argparse

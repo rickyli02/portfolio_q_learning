@@ -15,6 +15,7 @@ Owner: Codex
 - Changes requested for user-owned config files should be routed through `shared_agent_files/dialogue.txt`.
 - Claude may request edits to `.claude/CLAUDE.md` or other files under `.claude/`, but those edits should be reviewed by the user and Codex.
 - All scripts and tests should be run in the project `.venv`.
+- Prefer checked-in helper scripts for repeated mechanical tasks.
 
 ### Dialogue Management
 
@@ -23,6 +24,8 @@ Owner: Codex
 - Start a fresh `shared_agent_files/dialogue.txt` with a short summary of the most recent decisions and open issues.
 - Dialogue entries should include full timestamps and should be appended at the bottom of the file.
 - Generic guidance from Ricky in dialogue should be copied into persistent Codex notes.
+- Claude timestamp generation should be mechanical via `scripts/get_dialogue_timestamp.sh`.
+- Claude long-form reasoning should be saved under `claude_files/` via `scripts/save_claude_reasoning.py`.
 
 ### Claude Task Protocol
 

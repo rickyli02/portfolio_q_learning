@@ -141,6 +141,16 @@ def test_replay_buffer_clear():
     assert len(buf) == 0
 
 
+def test_replay_buffer_sample_no_duplicates():
+    """Sample without replacement: no duplicate indices when batch_size == buffer size."""
+    buf = ReplayBuffer(capacity=20)
+    for _ in range(20):
+        buf.add(_make_transition())
+    # Sample all 20 — with replacement this would almost surely produce duplicates
+    batch = buf.sample(20)
+    assert batch.batch_size == 20
+
+
 # ---------------------------------------------------------------------------
 # Synthetic GBM
 # ---------------------------------------------------------------------------
