@@ -20,6 +20,9 @@ Use sources in this order:
 6. `references/papers/` — original PDFs, only when the markdown summaries are insufficient
 
 Do not repeatedly re-read the original papers if the markdown summaries already contain the implementation detail.
+Frequently used skills or commands should be saved in `.claude/skills` and `.claude/commands`.
+When additional planning is required, ask questions in `dialogue.txt`.
+When major changes are made, automatically commit in git with message.
 
 ---
 
@@ -196,7 +199,7 @@ Use `pathlib.Path`. No hardcoded absolute paths. Outputs, checkpoints, and logs 
 
 ## Agent coordination
 
-- `shared_agent_files/dialogue.txt` — communication log between Claude Code and Codex agents; record identity and timestamp when writing
+- `shared_agent_files/dialogue.txt` — communication log between Claude Code and Codex agents; record identity and datetime when writing
 - Codex agent writes to `codex_files/`, Claude Code writes to `claude_files/`
 - Both agents may read/write `shared_agent_files/`
 
