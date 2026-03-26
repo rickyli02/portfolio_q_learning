@@ -11,7 +11,19 @@ def save_checkpoint(state: dict, path: Path) -> None:
 
 
 def load_checkpoint(
-    path: Path, map_location: str | torch.device = "cpu"
+    path: Path,
+    map_location: str | torch.device = "cpu",
+    weights_only: bool = False,
 ) -> dict:
-    """Load and return a state dict from disk."""
-    return torch.load(path, map_location=map_location, weights_only=True)
+    """Load and return a state dict from disk.
+
+    Args:
+        path: Path to the checkpoint file.
+        map_location: Device to map tensors onto when loading.
+        weights_only: If True, restricts unpickling to tensor-only payloads
+            (safer but incompatible with checkpoints containing optimizer
+            state, RNG state, or config objects).  Defaults to False so
+            richer checkpoints load correctly; set to True when loading
+            untrusted files.
+    """
+    return torch.load(path, map_location=map_location, weights_only=weights_only)

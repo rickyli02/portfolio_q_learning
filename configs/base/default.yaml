@@ -1,0 +1,55 @@
+# Base default configuration for portfolio RL experiments.
+# All values here are the same as the dataclass defaults; this file serves
+# as documentation and a starting point for experiment overrides.
+
+seed: 42
+
+env:
+  env_type: gbm
+  horizon: 1.0
+  n_steps: 100
+  initial_wealth: 1.0
+  rebalance_interval: 0.0
+  mu: [0.1]
+  sigma: [[0.2]]
+  jump_intensity: 0.0
+  assets:
+    n_risky: 1
+    include_risk_free: true
+    risk_free_rate: 0.05
+
+reward:
+  target_return: 1.0
+  mv_penalty_coeff: 1.0
+  entropy_temp: 0.1
+  discount: 1.0
+
+policy:
+  policy_type: gaussian
+  hidden_dims: [64, 64]
+  log_std_min: -5.0
+  log_std_max: 2.0
+  deterministic_eval: true
+
+optim:
+  actor_lr: 3.0e-4
+  critic_lr: 3.0e-4
+  batch_size: 256
+  n_epochs: 100
+  n_steps_per_epoch: 1000
+  trace_decay: 0.95
+  online_update_interval: 1
+  w_update_interval: 10
+  replay_buffer_size: 100000
+  grad_clip: 1.0
+
+eval:
+  eval_interval: 10
+  n_eval_episodes: 16
+  eval_deterministic: true
+
+logging:
+  experiment_name: default
+  log_level: INFO
+  save_checkpoints: true
+  checkpoint_interval: 10

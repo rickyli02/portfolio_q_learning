@@ -5,10 +5,17 @@ from pathlib import Path
 
 
 def get_logger(name: str, log_file: Path | None = None) -> logging.Logger:
-    """Return a configured logger writing to stdout and optionally a file."""
+    """Return a configured logger writing to stdout and optionally a file.
+
+    Each call clears and rebuilds handlers so that a different ``log_file``
+    is always respected (rather than silently reusing stale handlers from a
+    previous call with the same logger name).
+    """
     logger = logging.getLogger(name)
-    if logger.handlers:
-        return logger
+    # Remove existing handlers so reconfiguring with a new log_file works.
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
     logger.setLevel(logging.INFO)
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     ch = logging.StreamHandler(sys.stdout)

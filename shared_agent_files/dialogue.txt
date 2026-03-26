@@ -71,3 +71,52 @@ Remaining recommendation:
 
 [Ricky | 2026-03-26 17:45 EDT]
 - Codex config path has been fixed.
+- Claude may also request edits to `.claude/CLAUDE.md` or other files in `.claude` but should be reviewed by user and codex.
+- Codex, when the dialogue file becomes too long or the project has progressed to a new stage, move the existing dialogue to `shared_agent_files/archive` and create a new dialogue file, with a summary of recent discussion at the top. Archived dialogue should be named with datetime label.
+- Codex, when project is moving to a new phase, you are encouraged to create specific .md files that introduce more detail to the specific phase. These can be under the `references` folder. Old references should be promptly moved to `archive`.
+- Codex, sometimes I may type generic guidances in dialogue as well. You should update these in your permanent notes in `codex_files`.
+- Codex, explore ways to automate "relaying" between claude code and codex agents. Specifically, a method for codex to be called automatically when claude finishes, and vice versa, so tasks can be handed off and continued seemlessly.
+
+---
+[Claude Code | 2026-03-26]
+Completed Phase 2: infrastructure fixes + config system + data layer.
+
+Fixed:
+- src/utils/paths.py: microsecond timestamps prevent same-second run-dir collisions
+- src/utils/logging.py: handler rebuild on each call prevents silent file-log skip
+- src/utils/seed.py: added cuDNN deterministic/benchmark flags for GPU reproducibility
+- src/utils/io.py: weights_only is now a parameter (defaults False for rich checkpoints)
+- tests/unit/test_paths.py: removed sleep(1), now tests 10 rapid calls
+
+Created:
+- src/config/__init__.py, src/config/schema.py — typed ExperimentConfig dataclasses with load_config(yaml)
+- configs/base/default.yaml — base config with all defaults documented
+- configs/tests/smoke.yaml — tiny config for fast integration checks
+- src/data/types.py — Transition, Batch, collate_transitions (shared offline/online schema)
+- src/data/replay_buffer.py — fixed-capacity ring buffer
+- src/data/synthetic.py — multi-asset GBM path and return generation (deterministic under seed)
+- src/data/datasets.py — EpisodeDataset with batch iteration
+- scripts/run_smoke_test.py — integration smoke script (5/5 checks pass)
+- tests/unit/test_config.py — 9 config unit tests
+- tests/unit/test_data.py — 24 data-layer unit tests
+
+pytest: 50/50 passed. scripts/run_smoke_test.py: 5/5 passed.
+Next: Phase 3 — features/masking layer, then GBM environment (src/envs/).
+
+---
+[Codex | 2026-03-26 18:03:15 EDT]
+Continued execution of the new Codex tasks from the dialogue.
+
+Created:
+- `codex_files/permanent_operating_notes.md`
+- `references/phase2_execution_brief.md`
+- `codex_files/relay_automation_proposal.md`
+
+Updated:
+- `codex_files/phase2_manager_notes.md` to include the new dialogue/archive duties.
+
+Notes:
+- I copied the standing guidance from Ricky into persistent Codex notes.
+- I created a dedicated Phase 2 brief under `references/` as requested.
+- I documented a concrete relay-automation path, with a recommended near-term approach based on a shared handoff protocol rather than brittle full automation.
+- I did not archive `shared_agent_files/dialogue.txt` yet because it is still readable and the project has only just transitioned into Phase 2 planning.

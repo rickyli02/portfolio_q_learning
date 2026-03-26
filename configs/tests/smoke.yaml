@@ -1,0 +1,37 @@
+# Tiny config for smoke tests.  Values are deliberately small so tests run
+# quickly without sacrificing coverage of the code paths.
+
+seed: 0
+
+env:
+  env_type: gbm
+  horizon: 0.5
+  n_steps: 10
+  initial_wealth: 1.0
+  mu: [0.08]
+  sigma: [[0.15]]
+  assets:
+    n_risky: 1
+    include_risk_free: true
+    risk_free_rate: 0.03
+
+reward:
+  target_return: 1.0
+  entropy_temp: 0.05
+
+policy:
+  hidden_dims: [16, 16]
+
+optim:
+  batch_size: 32
+  n_epochs: 3
+  n_steps_per_epoch: 50
+  replay_buffer_size: 1000
+
+eval:
+  eval_interval: 1
+  n_eval_episodes: 2
+
+logging:
+  experiment_name: smoke
+  save_checkpoints: false

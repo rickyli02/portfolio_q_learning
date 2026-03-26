@@ -20,9 +20,9 @@ def test_make_run_dir_creates_directory():
 
 
 def test_make_run_dir_unique():
+    # Microsecond timestamps make same-second collision extremely unlikely
+    # without requiring any sleep.
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
-        d1 = make_run_dir("exp", base_dir=base)
-        import time; time.sleep(1)
-        d2 = make_run_dir("exp", base_dir=base)
-        assert d1 != d2
+        dirs = {make_run_dir("exp", base_dir=base) for _ in range(10)}
+        assert len(dirs) == 10
