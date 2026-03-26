@@ -1,0 +1,4 @@
+references/papers/*.pdf
+.venv/
+.claude/
+.codex/

@@ -219,8 +219,8 @@ web_search = "cached"
 
 # Disable or re-enable a specific skill without deleting it.
 [[skills.config]]
-# path = "/path/to/skill/SKILL.md"
-# enabled = false
+path = ".codex/skills/skill1.md"
+enabled = false
 
 ################################################################################
 # Sandbox settings (tables)
@@ -231,7 +231,6 @@ web_search = "cached"
 # Additional writable roots beyond the workspace (cwd). Default: []
 writable_roots = [
     "codex_files",
-    "claude_files",
     "README.md",
     "references",
     "shared_agent_files"
