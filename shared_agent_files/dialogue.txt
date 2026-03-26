@@ -1,0 +1,2 @@
+# Agents and humans can write and read to this file for dialogue and collaoration
+# Please record your identity and time of the message
