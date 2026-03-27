@@ -3,6 +3,7 @@
 from src.algos.ctrl import (
     CTRLCriticEval,
     CTRLEvalResult,
+    CTRLGradEval,
     CTRLMartingaleResiduals,
     CTRLTrajectory,
     CTRLTrajectoryStats,
@@ -13,6 +14,7 @@ from src.algos.ctrl import (
     compute_w_update_target,
     evaluate_critic_on_trajectory,
     evaluate_ctrl_deterministic,
+    reeval_ctrl_trajectory,
 )
 from src.algos.oracle_mv import (
     OracleCoefficients,
@@ -25,6 +27,7 @@ from src.algos.oracle_mv import (
 __all__ = [
     "CTRLCriticEval",
     "CTRLEvalResult",
+    "CTRLGradEval",
     "CTRLMartingaleResiduals",
     "CTRLTrajectory",
     "CTRLTrajectoryStats",
@@ -35,6 +38,7 @@ __all__ = [
     "compute_w_update_target",
     "evaluate_critic_on_trajectory",
     "evaluate_ctrl_deterministic",
+    "reeval_ctrl_trajectory",
     "OracleCoefficients",
     "OracleMVPolicy",
     "compute_oracle_coefficients",

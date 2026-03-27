@@ -19,27 +19,36 @@ Rollout / evaluation (Phase 7A)
 
 Objective and loss primitives (Phase 8A)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-4. ``CTRLCriticEval`` — container for critic J values evaluated along a
-   trajectory; inputs to the martingale critic loss.
+4. ``CTRLCriticEval`` — container for *detached* critic J values along a
+   trajectory; diagnostic inputs to the martingale critic loss.
 
 5. ``CTRLMartingaleResiduals`` — one-step martingale residuals
-   δ_k = J(t_{k+1}, x_{k+1}) - J(t_k, x_k) + γ·log π_k·dt; the shared
-   building block for critic and actor updates (companion §4.5).
+   δ_k = J(t_{k+1}, x_{k+1}) - J(t_k, x_k) + γ·log π_k·dt; stored
+   detached (companion §4.5).
 
 6. ``CTRLTrajectoryStats`` — aggregated log-prob and entropy statistics
    for outer-loop diagnostics.
 
-7. ``evaluate_critic_on_trajectory`` — batched critic evaluation along a
-   collected trajectory.
+7. ``evaluate_critic_on_trajectory`` — detached critic evaluation along a
+   collected trajectory (uses ``torch.no_grad()``).
 
-8. ``compute_martingale_residuals`` — computes δ_k from evaluated critic
-   values and stored trajectory log-probs.
+8. ``compute_martingale_residuals`` — computes detached δ_k.
 
-9. ``aggregate_trajectory_stats`` — aggregates log-prob and entropy terms
-   from a trajectory.
+9. ``aggregate_trajectory_stats`` — aggregates log-prob and entropy terms.
 
-10. ``compute_w_update_target`` — computes terminal wealth error x_T - z
-    for the outer-loop Lagrange multiplier update.
+10. ``compute_terminal_mv_objective`` — terminal MV objective (x_T−w)²−(w−z)².
+
+11. ``compute_w_update_target`` — outer-loop Lagrange signal x_T − z.
+
+Gradient-tracked re-evaluation (Phase 8B)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+12. ``CTRLGradEval`` — container for gradient-tracked actor and critic
+    re-evaluations on a stored trajectory; preserves grad paths for trainer
+    use.  Distinct from Phase 8A detached helpers.
+
+13. ``reeval_ctrl_trajectory`` — re-evaluates actor log-probs, entropy, and
+    critic J values with gradient tracking enabled so the trainer can call
+    ``.backward()`` on them.
 
 SCOPE BOUNDARY
 --------------
@@ -506,3 +515,116 @@ def compute_w_update_target(
         device=traj.terminal_wealth.device,
     )
     return traj.terminal_wealth - z
+
+
+# ---------------------------------------------------------------------------
+# Phase 8B: gradient-tracked re-evaluation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CTRLGradEval:
+    """Gradient-tracked actor and critic re-evaluation on a stored trajectory.
+
+    THEOREM-ALIGNED: preserves gradient paths w.r.t. actor parameters φ
+    and critic parameters θ so the trainer can compute:
+
+    - actor mean gradient:       ∂log π(u_k|t_k, x_k; w; φ)/∂φ₁
+    - actor covariance gradient: ∂log π(u_k|...)/∂φ₂⁻¹
+    - critic gradient:           ∂J(t_k, x_k; w; θ)/∂θ
+
+    (Huang–Jia–Zhou 2025, §3.8 and companion §4.5)
+
+    REPO ENGINEERING: this container is intentionally distinct from
+    ``CTRLCriticEval`` (Phase 8A, detached) and ``CTRLTrajectoryStats``
+    (Phase 8A, detached diagnostics).  The stored tensors have ``requires_grad``
+    tied to the live actor / critic parameter graph; do NOT call ``.detach()``
+    on them before passing to trainer loss computations.
+
+    Attributes:
+        log_probs:     log π(u_k|t_k,x_k;w;φ) recomputed with grad, ``(n_steps,)``.
+        entropy_terms: H[π(·|t_k;φ)] recomputed with grad, ``(n_steps,)``.
+        j_at_steps:    J(t_k,x_k;w;θ) recomputed with grad, ``(n_steps,)``.
+        j_at_next:     J(t_{k+1},x_{k+1};w;θ) recomputed with grad, ``(n_steps,)``.
+        dt:            Step size used to construct t_{k+1} = t_k + dt.
+        w:             Outer-loop target-wealth parameter.
+    """
+
+    log_probs: torch.Tensor      # (n_steps,) — grad w.r.t. actor φ
+    entropy_terms: torch.Tensor  # (n_steps,) — grad w.r.t. actor φ
+    j_at_steps: torch.Tensor     # (n_steps,) — grad w.r.t. critic θ
+    j_at_next: torch.Tensor      # (n_steps,) — grad w.r.t. critic θ
+    dt: float
+    w: float
+
+
+def reeval_ctrl_trajectory(
+    actor: ActorBase,
+    critic: CriticBase,
+    traj: CTRLTrajectory,
+    dt: float,
+) -> CTRLGradEval:
+    """Re-evaluate actor and critic on a stored trajectory with gradient tracking.
+
+    THEOREM-ALIGNED: re-computes log π(u_k|t_k,x_k;w;φ), H[π(·|t_k;φ)],
+    J(t_k,x_k;w;θ), and J(t_{k+1},x_{k+1};w;θ) using the stored trajectory
+    state ``(t_k, x_k, u_k)`` but with live model parameters.  The outputs
+    have gradient paths w.r.t. actor and critic parameters so that:
+
+    - critic loss:  Σ_k ∂J/∂θ · δ_k  can be differentiated through J_at_steps/J_at_next
+    - actor loss:   Σ_k ∂log π/∂φ · δ_k  can be differentiated through log_probs
+
+    (Huang–Jia–Zhou 2025, §3.8 and companion §4.5)
+
+    REPO ENGINEERING:
+    - The stored trajectory actions, times, and wealth path are detached inputs;
+      gradient flows only through actor / critic parameters, not through the
+      trajectory state (consistent with the off-policy re-evaluation pattern).
+    - Step-by-step loop is used rather than a fully-batched call to remain safe
+      with the current actor API, which handles scalar ``t`` per step.
+    - Contrast with ``evaluate_critic_on_trajectory`` (Phase 8A), which wraps
+      everything in ``torch.no_grad()`` and returns detached tensors.
+
+    Args:
+        actor:  Stochastic behavior policy satisfying ``ActorBase``.
+        critic: Value function satisfying ``CriticBase``.
+        traj:   Stored trajectory from ``collect_ctrl_trajectory``.
+        dt:     Step size (horizon / n_steps); must match the trajectory spacing.
+
+    Returns:
+        ``CTRLGradEval`` with gradient-tracked log-probs, entropy, and J values.
+    """
+    n_steps = traj.times.shape[0]
+
+    log_prob_list: list[torch.Tensor] = []
+    entropy_list: list[torch.Tensor] = []
+    j_steps_list: list[torch.Tensor] = []
+    j_next_list: list[torch.Tensor] = []
+
+    for k in range(n_steps):
+        t_k = traj.times[k]
+        x_k = traj.wealth_path[k]
+        x_k1 = traj.wealth_path[k + 1]
+        u_k = traj.actions[k]
+
+        # Actor re-evaluation: gradient flows through φ₁, φ₂, φ₃
+        lp_k = actor.log_prob(u_k, t_k, x_k, traj.w)
+        h_k = actor.entropy(t_k)
+
+        # Critic re-evaluation: gradient flows through θ₁, θ₂, θ₃
+        j_k = critic(t_k, x_k, traj.w)
+        j_k1 = critic(t_k + dt, x_k1, traj.w)
+
+        log_prob_list.append(lp_k)
+        entropy_list.append(h_k)
+        j_steps_list.append(j_k)
+        j_next_list.append(j_k1)
+
+    return CTRLGradEval(
+        log_probs=torch.stack(log_prob_list),     # (n_steps,)
+        entropy_terms=torch.stack(entropy_list),  # (n_steps,)
+        j_at_steps=torch.stack(j_steps_list),     # (n_steps,)
+        j_at_next=torch.stack(j_next_list),       # (n_steps,)
+        dt=dt,
+        w=traj.w,
+    )

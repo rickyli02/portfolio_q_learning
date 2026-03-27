@@ -6,6 +6,7 @@ import torch
 from src.algos.ctrl import (
     CTRLCriticEval,
     CTRLEvalResult,
+    CTRLGradEval,
     CTRLMartingaleResiduals,
     CTRLTrajectory,
     CTRLTrajectoryStats,
@@ -16,6 +17,7 @@ from src.algos.ctrl import (
     compute_w_update_target,
     evaluate_critic_on_trajectory,
     evaluate_ctrl_deterministic,
+    reeval_ctrl_trajectory,
 )
 from src.config.schema import AssetConfig, EnvConfig
 from src.envs.gbm_env import GBMPortfolioEnv
@@ -620,3 +622,157 @@ def test_phase8a_public_api_imports():
     assert callable(aggregate_trajectory_stats)
     assert callable(compute_terminal_mv_objective)
     assert callable(compute_w_update_target)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8B: reeval_ctrl_trajectory / CTRLGradEval
+# ---------------------------------------------------------------------------
+
+def test_grad_eval_is_dataclass():
+    traj = _collect()
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=0.1)
+    assert isinstance(ge, CTRLGradEval)
+
+
+def test_grad_eval_log_probs_shape():
+    n_steps = 8
+    traj = _collect(n_steps=n_steps)
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=1.0 / n_steps)
+    assert ge.log_probs.shape == (n_steps,)
+
+
+def test_grad_eval_entropy_shape():
+    n_steps = 8
+    traj = _collect(n_steps=n_steps)
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=1.0 / n_steps)
+    assert ge.entropy_terms.shape == (n_steps,)
+
+
+def test_grad_eval_j_at_steps_shape():
+    n_steps = 8
+    traj = _collect(n_steps=n_steps)
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=1.0 / n_steps)
+    assert ge.j_at_steps.shape == (n_steps,)
+
+
+def test_grad_eval_j_at_next_shape():
+    n_steps = 8
+    traj = _collect(n_steps=n_steps)
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=1.0 / n_steps)
+    assert ge.j_at_next.shape == (n_steps,)
+
+
+def test_grad_eval_log_probs_has_grad():
+    """log_probs must have grad through actor parameters φ."""
+    traj = _collect()
+    actor = _make_actor()
+    ge = reeval_ctrl_trajectory(actor, _make_critic(), traj, dt=0.1)
+    assert ge.log_probs.requires_grad
+
+
+def test_grad_eval_entropy_has_grad():
+    """entropy_terms must have grad through actor parameters φ."""
+    traj = _collect()
+    actor = _make_actor()
+    ge = reeval_ctrl_trajectory(actor, _make_critic(), traj, dt=0.1)
+    assert ge.entropy_terms.requires_grad
+
+
+def test_grad_eval_j_has_grad():
+    """j_at_steps and j_at_next must have grad through critic parameters θ."""
+    traj = _collect()
+    critic = _make_critic()
+    ge = reeval_ctrl_trajectory(_make_actor(), critic, traj, dt=0.1)
+    assert ge.j_at_steps.requires_grad
+    assert ge.j_at_next.requires_grad
+
+
+def test_grad_eval_finite():
+    traj = _collect()
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=0.1)
+    assert torch.isfinite(ge.log_probs).all()
+    assert torch.isfinite(ge.entropy_terms).all()
+    assert torch.isfinite(ge.j_at_steps).all()
+    assert torch.isfinite(ge.j_at_next).all()
+
+
+def test_grad_eval_log_probs_match_trajectory():
+    """Re-evaluated log-probs must equal stored trajectory values (same params, same inputs)."""
+    actor = _make_actor()
+    traj = collect_ctrl_trajectory(actor, _make_env(), w=1.0, seed=0)
+    ge = reeval_ctrl_trajectory(actor, _make_critic(), traj, dt=0.1)
+    assert torch.allclose(ge.log_probs.detach(), traj.log_probs, atol=1e-5)
+
+
+def test_grad_eval_entropy_match_trajectory():
+    """Re-evaluated entropy must equal stored trajectory values."""
+    actor = _make_actor()
+    traj = collect_ctrl_trajectory(actor, _make_env(), w=1.0, seed=0)
+    ge = reeval_ctrl_trajectory(actor, _make_critic(), traj, dt=0.1)
+    assert torch.allclose(ge.entropy_terms.detach(), traj.entropy_terms, atol=1e-5)
+
+
+def test_grad_eval_j_matches_phase8a_detached():
+    """Gradient-tracked J values must equal detached evaluate_critic_on_trajectory output."""
+    traj = _collect()
+    critic = _make_critic()
+    dt = 0.1
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=dt)
+    ge = reeval_ctrl_trajectory(_make_actor(), critic, traj, dt=dt)
+    assert torch.allclose(ge.j_at_steps.detach(), ce.J_at_steps, atol=1e-5)
+    assert torch.allclose(ge.j_at_next.detach(), ce.J_at_next, atol=1e-5)
+
+
+def test_grad_eval_backward_actor():
+    """A scalar loss on log_probs must backprop to actor parameters without error."""
+    actor = _make_actor()
+    traj = collect_ctrl_trajectory(actor, _make_env(), w=1.0, seed=0)
+    ge = reeval_ctrl_trajectory(actor, _make_critic(), traj, dt=0.1)
+    loss = ge.log_probs.sum()
+    loss.backward()
+    assert actor.log_phi1.grad is not None
+
+
+def test_grad_eval_backward_critic():
+    """A scalar loss on j_at_steps must backprop to critic parameters without error."""
+    critic = _make_critic()
+    traj = _collect()
+    ge = reeval_ctrl_trajectory(_make_actor(), critic, traj, dt=0.1)
+    loss = ge.j_at_steps.sum()
+    loss.backward()
+    assert critic.theta1.grad is not None
+
+
+def test_grad_eval_dt_stored():
+    traj = _collect()
+    dt = 1.0 / 10
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=dt)
+    assert ge.dt == pytest.approx(dt)
+
+
+def test_grad_eval_w_stored():
+    traj = _collect(w=1.3)
+    ge = reeval_ctrl_trajectory(_make_actor(), _make_critic(), traj, dt=0.1)
+    assert ge.w == pytest.approx(1.3)
+
+
+def test_grad_eval_distinguished_from_phase8a():
+    """CTRLGradEval is a separate type from CTRLCriticEval."""
+    traj = _collect()
+    critic = _make_critic()
+    dt = 0.1
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=dt)
+    ge = reeval_ctrl_trajectory(_make_actor(), critic, traj, dt=dt)
+    assert type(ge) is not type(ce)
+    assert not ce.J_at_steps.requires_grad  # detached
+    assert ge.j_at_steps.requires_grad      # grad-tracked
+
+
+# ---------------------------------------------------------------------------
+# Phase 8B: public API imports
+# ---------------------------------------------------------------------------
+
+def test_phase8b_public_api_imports():
+    from src.algos import CTRLGradEval, reeval_ctrl_trajectory
+    assert CTRLGradEval is not None
+    assert callable(reeval_ctrl_trajectory)
