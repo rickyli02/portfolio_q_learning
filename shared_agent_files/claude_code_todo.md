@@ -20,11 +20,17 @@ As of 2026-03-27:
 - Phase 6A actor / critic model interface foundation is approved.
 - Phase 7A CTRL rollout / deterministic-evaluation scaffolding is complete.
 - Phase 7B CTRL smoke integration and long-verification tooling is approved.
+- Phase 8A CTRL objective and loss-primitive foundation is approved.
+- Phase 8B CTRL gradient-tracked re-evaluation foundation is approved.
+- Phase 8C CTRL scalar loss assembly foundation is approved.
+- Phase 9A CTRL single-trajectory trainer step foundation is implemented and under bounded review cleanup.
 - Latest verified outputs with current repo state are:
   - model-focused verification:
     - `tests/unit/test_models.py -q -> 49 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 256 passed`
+    - `tests/unit -q -> 343 passed`
+  - current trainer-step verification:
+    - `tests/unit/test_ctrl_trainer.py -q -> 24 passed`
   - current smoke verification:
     - `scripts/run_smoke_test.py -> 7/7 passed`
   - current long-verification artifacts:
@@ -34,7 +40,7 @@ As of 2026-03-27:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 8A CTRL objective and loss-primitive foundation
+  - Phase 9A CTRL single-trajectory trainer step foundation follow-up cleanup
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -45,6 +51,7 @@ As of 2026-03-27:
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
+  - after Phase 9A approval, normalize trainer naming/API boundaries before broader loop infrastructure hardens
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`

@@ -13,11 +13,15 @@ Last updated: 2026-03-27
 - Phase 6A actor / critic model interface foundation: approved
 - Phase 7A CTRL rollout and deterministic-evaluation scaffolding: complete
 - Phase 7B CTRL smoke integration and long-verification tooling: approved
-- Active bounded task: Phase 8A CTRL objective and loss-primitive foundation
+- Phase 8A CTRL objective and loss-primitive foundation: approved
+- Phase 8B CTRL gradient-tracked re-evaluation foundation: approved
+- Phase 8C CTRL scalar loss assembly foundation: approved
+- Phase 9A CTRL single-trajectory trainer step foundation: implemented, pending tiny review cleanup
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `256 passed`
+- `tests/unit -q` has reached `343 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `24 passed`
 - `scripts/run_smoke_test.py` has reached `7/7 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - subprocess-isolated import timing normalized after recreating `.venv` locally:
@@ -31,8 +35,8 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - keep CTRL rollout/eval code trainer-free
-  - add objective/loss primitives before introducing any optimizer or trainer loop
+  - close the bounded Phase 9A review cleanup
+  - keep the trainer layer limited to a single-trajectory step before any broader loop/checkpoint/logging work
 
 ## Stable decisions
 
