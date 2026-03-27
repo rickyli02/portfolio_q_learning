@@ -95,6 +95,8 @@ def ctrl_w_update(
 
     Raises:
         ValueError: if ``step_size <= 0``.
+        ValueError: if both ``w_min`` and ``w_max`` are provided and
+                    ``w_min > w_max``.
     """
     if step_size <= 0.0:
         raise ValueError(f"step_size must be > 0, got {step_size}")

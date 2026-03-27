@@ -620,3 +620,146 @@ def test_phase10a_public_api_imports():
     from src.train import CTRLWUpdateResult, ctrl_w_update
     assert CTRLWUpdateResult is not None
     assert callable(ctrl_w_update)
+
+
+# ---------------------------------------------------------------------------
+# Phase 10B: ctrl_outer_iter / CTRLOuterIterResult
+# ---------------------------------------------------------------------------
+
+from src.train.ctrl_outer_iter import CTRLOuterIterResult, ctrl_outer_iter
+
+
+def _run_outer_iter(
+    w: float = 1.0,
+    target_return_z: float = 1.0,
+    w_step_size: float = 0.1,
+    n_updates: int = 3,
+    entropy_temp: float = 0.1,
+    base_seed: int | None = 0,
+    w_min: float | None = None,
+    w_max: float | None = None,
+) -> CTRLOuterIterResult:
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    actor_opt, critic_opt = _make_optimizers(actor, critic)
+    return ctrl_outer_iter(
+        actor, critic, env, actor_opt, critic_opt,
+        w=w, target_return_z=target_return_z,
+        w_step_size=w_step_size, n_updates=n_updates,
+        entropy_temp=entropy_temp, base_seed=base_seed,
+        w_min=w_min, w_max=w_max,
+    )
+
+
+# --- result structure ---
+
+def test_outer_iter_returns_dataclass():
+    result = _run_outer_iter()
+    assert isinstance(result, CTRLOuterIterResult)
+
+
+def test_outer_iter_run_result_is_ctrl_run_result():
+    result = _run_outer_iter()
+    assert isinstance(result.run_result, CTRLRunResult)
+
+
+def test_outer_iter_w_update_result_is_ctrl_w_update_result():
+    result = _run_outer_iter()
+    assert isinstance(result.w_update_result, CTRLWUpdateResult)
+
+
+def test_outer_iter_w_prev_matches_input():
+    w_in = 1.05
+    result = _run_outer_iter(w=w_in)
+    assert result.w_prev == pytest.approx(w_in)
+
+
+def test_outer_iter_w_next_matches_w_update_result():
+    """w_next must equal w_update_result.w_next."""
+    result = _run_outer_iter()
+    assert result.w_next == pytest.approx(result.w_update_result.w_next)
+
+
+def test_outer_iter_n_updates_forwarded():
+    n_updates = 4
+    result = _run_outer_iter(n_updates=n_updates)
+    assert result.run_result.n_updates == n_updates
+
+
+# --- integration: w-update uses final_step.terminal_wealth ---
+
+def test_outer_iter_w_update_uses_final_terminal_wealth():
+    """w_update_result.signal must equal final_step.terminal_wealth - z."""
+    z = 1.0
+    result = _run_outer_iter(target_return_z=z)
+    x_t = result.run_result.final_step.terminal_wealth
+    assert result.w_update_result.signal == pytest.approx(x_t - z)
+
+
+def test_outer_iter_w_update_formula():
+    """w_next_raw must equal w - w_step_size * (x_T - z)."""
+    w, z, a = 1.0, 1.0, 0.1
+    result = _run_outer_iter(w=w, target_return_z=z, w_step_size=a)
+    x_t = result.run_result.final_step.terminal_wealth
+    expected_raw = w - a * (x_t - z)
+    assert result.w_update_result.w_next_raw == pytest.approx(expected_raw)
+
+
+# --- reproducibility ---
+
+def test_outer_iter_reproducible_with_base_seed():
+    """Fresh identical instances + same base_seed → same w_next."""
+    def _fresh_run(seed: int) -> CTRLOuterIterResult:
+        actor = _make_actor()
+        critic = _make_critic()
+        env = _make_env()
+        actor_opt, critic_opt = _make_optimizers(actor, critic)
+        return ctrl_outer_iter(
+            actor, critic, env, actor_opt, critic_opt,
+            w=1.0, target_return_z=1.0, w_step_size=0.1,
+            n_updates=2, entropy_temp=0.1, base_seed=seed,
+        )
+
+    r1 = _fresh_run(seed=5)
+    r2 = _fresh_run(seed=5)
+    assert r1.w_next == pytest.approx(r2.w_next)
+    assert r1.run_result.final_step.terminal_wealth == pytest.approx(
+        r2.run_result.final_step.terminal_wealth, abs=1e-5
+    )
+
+
+# --- projection path ---
+
+def test_outer_iter_projection_lower_clamp():
+    """w_min projection must propagate through the combined helper."""
+    # Use large w_step_size to force w_next_raw well below w_min.
+    result = _run_outer_iter(
+        w=1.0, target_return_z=1.0, w_step_size=50.0,
+        w_min=0.5,
+    )
+    # If raw < 0.5 it gets clamped; if raw >= 0.5 the clamp does nothing.
+    assert result.w_next >= 0.5
+
+
+def test_outer_iter_projection_upper_clamp():
+    """w_max projection must propagate through the combined helper."""
+    result = _run_outer_iter(
+        w=1.0, target_return_z=1.0, w_step_size=50.0,
+        w_max=1.5,
+    )
+    assert result.w_next <= 1.5
+
+
+def test_outer_iter_no_projection_when_unbounded():
+    """Without bounds w_next must equal w_next_raw."""
+    result = _run_outer_iter(w_min=None, w_max=None)
+    assert result.w_next == pytest.approx(result.w_update_result.w_next_raw)
+
+
+# --- public API (Phase 10B) ---
+
+def test_phase10b_public_api_imports():
+    from src.train import CTRLOuterIterResult, ctrl_outer_iter
+    assert CTRLOuterIterResult is not None
+    assert callable(ctrl_outer_iter)
