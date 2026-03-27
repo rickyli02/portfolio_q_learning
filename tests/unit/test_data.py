@@ -142,13 +142,30 @@ def test_replay_buffer_clear():
 
 
 def test_replay_buffer_sample_no_duplicates():
-    """Sample without replacement: no duplicate indices when batch_size == buffer size."""
-    buf = ReplayBuffer(capacity=20)
-    for _ in range(20):
-        buf.add(_make_transition())
-    # Sample all 20 — with replacement this would almost surely produce duplicates
-    batch = buf.sample(20)
-    assert batch.batch_size == 20
+    """Sample without replacement: sampled elements are unique.
+
+    Each transition is given a distinct time value so we can identify which
+    transitions were selected.  Sampling the full buffer must return all 20
+    distinct time values with no repeats.
+    """
+    n = 20
+    buf = ReplayBuffer(capacity=n)
+    for i in range(n):
+        t = Transition(
+            obs=torch.zeros(3),
+            action=torch.zeros(1),
+            reward=torch.tensor(0.0),
+            next_obs=torch.zeros(3),
+            done=torch.tensor(0.0),
+            time=torch.tensor(float(i)),   # unique sentinel per transition
+            next_time=torch.tensor(float(i) + 0.1),
+        )
+        buf.add(t)
+    batch = buf.sample(n)
+    assert batch.batch_size == n
+    sampled_times = batch.time.tolist()
+    # No duplicates: all n distinct sentinel values must appear exactly once
+    assert len(set(sampled_times)) == n
 
 
 # ---------------------------------------------------------------------------

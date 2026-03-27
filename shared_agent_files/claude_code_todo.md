@@ -12,9 +12,17 @@ As of 2026-03-26:
 
 - Phase 1 scaffold exists.
 - Phase 2 config/data foundation exists.
-- A bounded Phase 2 bugfix cleanup was completed and is awaiting/under Codex review in dialogue.
-- Phase 3 has not been approved. Do not start `src/features/` or `src/envs/` work without a formal GO task assignment in `shared_agent_files/dialogue.txt`.
+- Phase 2 bugfix cleanup is complete.
+- Phase 3A features and masking foundation under `src/features/` is complete and verified.
+- Current verified unit-test status is `.venv/bin/pytest tests/unit -q -> 90 passed`.
+- The repo still does not implement paper-specific environments, reward/constraint logic, EMV/CTRL actor-critic models, trainers, or backtests.
+- Phase 2 planning notes were archived to:
+  - `references/archive/2026-03-26_phase2_execution_brief.md`
+  - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
+- New work beyond Phase 3A requires a formal GO task assignment in `shared_agent_files/dialogue.txt`.
 - Use `.claude/CLAUDE.md` only for stable baseline rules. Use this file plus dialogue for current-state details.
+
+Historical roadmap blocks below may describe tasks that are already complete. Treat this snapshot plus dialogue as the source of truth for current state.
 
 ---
 

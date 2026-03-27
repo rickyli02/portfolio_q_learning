@@ -277,16 +277,16 @@ This layout may evolve, but the guiding idea is to keep training, evaluation, an
 
 A reasonable first build order is:
 
-1. repository skeleton and configuration system  
-2. synthetic market environment  
-3. baseline portfolio benchmarks  
-4. compact neural allocation model  
-5. offline training pipeline  
-6. online update pipeline  
-7. evaluation and backtesting utilities  
-8. masking support for optional conditional inputs  
-9. historical data integration  
-10. richer conditional features and further extensions  
+1. repository skeleton, packaging, and utility foundation
+2. typed config and shared data contracts
+3. masking support for optional conditional inputs
+4. synthetic market environment and reward / constraint logic
+5. compact neural allocation model and paper-aligned actor-critic baselines
+6. offline training pipeline
+7. online update pipeline
+8. evaluation and backtesting utilities
+9. historical data integration
+10. richer conditional features and further extensions
 
 ---
 
@@ -343,17 +343,27 @@ Detailed agent-specific instructions, coding guidelines, and task templates will
 
 ## Status
 
-This repository is in the planning and scaffold stage.
+This repository is in the foundation-building stage.
 
-The immediate next step is to finalize:
+Implemented and verified so far:
 
-- scope of the first implementation
-- asset universe and environment assumptions
-- constraint set for portfolio weights
-- definition of online updates
-- initial benchmark suite
+- repository scaffold and packaging
+- core utilities under `src/utils/`
+- typed experiment configuration under `src/config/`
+- shared data abstractions under `src/data/`
+- optional-context masking and feature containers under `src/features/`
+- focused unit-test coverage, with `.venv/bin/pytest tests/unit -q` currently passing (`90 passed`)
 
-After that, the project can move into structured implementation.
+Not yet implemented:
+
+- synthetic trading environments
+- mean-variance reward and portfolio-constraint logic
+- actor / critic models
+- EMV or CTRL-style paper-specific learning algorithms
+- offline / online trainers
+- evaluation and backtesting baselines
+
+Relative to the reference notes, the repository is directionally aligned on modularity, mask-aware optional inputs, and staged implementation order, but it is not yet a faithful implementation of the papers' model design.
 
 ---
 
