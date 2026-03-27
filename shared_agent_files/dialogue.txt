@@ -1,7 +1,7 @@
 # Dialogue Summary
 
 Archived previous dialogue:
-- `shared_agent_files/archive/dialogue_2026-03-27_phase7_to_phase8a.txt`
+- `shared_agent_files/archive/dialogue_2026-03-27_phase8c_to_phase9a.txt`
 
 Current project summary:
 - Phase 1 scaffold: complete
@@ -13,16 +13,22 @@ Current project summary:
 - Phase 6A actor / critic model interface foundation: approved
 - Phase 7A CTRL rollout and deterministic-evaluation scaffolding: complete
 - Phase 7B CTRL smoke integration and long-verification tooling: approved
+- Phase 8A detached objective and terminal-target primitives: approved
+- Phase 8B gradient-tracked re-evaluation primitives: approved
+- Phase 8C scalar loss assembly foundation: approved, with final formulation/docstring cleanup complete
 
 Current verification snapshot:
-- `tests/unit -q` has reached `256 passed`
-- `scripts/run_smoke_test.py` has reached `7/7 passed`
-- long verification artifacts:
-  - `outputs/verification/2026-03-27_141812_verification.txt`
-  - `outputs/verification/2026-03-27_143247_verification.txt`
-- normalized subprocess import timings after recreating `.venv` locally:
-  - `numpy ~= 0.069s`
-  - `torch ~= 0.859s`
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl.py -q` -> `96 passed`
+- `.venv/bin/python3 -m pytest tests/unit -q` -> `319 passed`
+
+Current architectural boundary:
+- `src/algos/ctrl.py` now contains the trainer-ready mathematical plumbing for:
+  - trajectory collection
+  - deterministic evaluation
+  - detached martingale residuals and terminal quantities
+  - gradient-tracked re-evaluation
+  - scalar actor / critic surrogate losses
+- The next missing layer is the first trainer-side orchestration slice under `src/train/`.
 
 Stable environment / workflow decisions:
 - keep `.venv/` local-only and rebuildable
@@ -33,258 +39,37 @@ Stable environment / workflow decisions:
   - `.venv/bin/python3 -m pytest`
 
 Current active review state:
-- Phase 7B is closed and approved
-- The active bounded Claude task is `Phase 8A CTRL objective and loss-primitive foundation`
+- Phase 8C is closed and approved
+- The active bounded Claude task is `Phase 9A CTRL single-trajectory trainer step foundation`
 - Claude is expected to stay within:
-  - `src/algos/ctrl.py`
-  - `src/algos/__init__.py`
+  - `src/train/`
+  - `src/train/__init__.py`
   - directly related unit tests under `tests/unit/`
+  - `src/algos/ctrl.py` only if a tiny import/export hook is truly necessary
 
 Active task handoff:
 - Goal:
-  - move CTRL from rollout/evaluation scaffolding toward trainer-ready objective plumbing without starting trainer loops
+  - open `src/train/` with the narrowest useful integration slice
+  - prove the approved CTRL math plumbing can drive one real optimizer-backed update step before any broader trainer framework is introduced
 - Required deliverables:
-  - typed helpers for evaluating a `QuadraticCritic` along a collected trajectory
-  - helpers for aggregating actor-side rollout statistics already stored on `CTRLTrajectory`
-  - a helper for the paper-aligned terminal mean-variance-style target tied to `w`
+  - a small typed result dataclass for one update step
+  - a function that:
+    - collects one stochastic CTRL trajectory
+    - derives `dt` from trusted runtime objects rather than caller guesswork
+    - computes detached residual/objective primitives
+    - performs gradient-tracked re-evaluation
+    - assembles scalar critic and actor losses
+    - applies one critic optimizer step and one actor optimizer step
+    - returns the step result with key scalar outputs
 - Explicitly out of scope:
-  - optimizer steps
-  - replay-buffer training loops
-  - `w` scheduling
-  - checkpoint/logging work
-  - broad config-dispatch changes
+  - multi-episode training loops
+  - `w` update scheduling
+  - replay-buffer training
+  - TD(`lambda`) traces
+  - checkpoint/logging infrastructure
+  - config-dispatch wiring
+  - plotting/evaluation scripts
 - Verification should run in `.venv` using whichever interpreter path exists locally
 
 Open coordination note:
-- Documentation has been refreshed to reflect Phase 7B approval and the venv command-path rule.
-
----
-[Claude Code | 2026-03-27 14:58:12 EDT]
-Verification request:
-- Task completed: Phase 8A CTRL objective and loss-primitive foundation
-- Files changed:
-  - src/algos/ctrl.py:
-    - Updated module docstring to cover Phase 7A + 8A scope
-    - Fixed two unused-variable warnings: `obs, info = env.reset(...)` → `_, info = ...`
-    - Added CriticBase import
-    - Added three new typed dataclasses: CTRLCriticEval, CTRLMartingaleResiduals, CTRLTrajectoryStats
-    - Added four new pure-computation helpers:
-      - evaluate_critic_on_trajectory(critic, traj, dt) → CTRLCriticEval
-      - compute_martingale_residuals(critic_eval, traj, entropy_temp) → CTRLMartingaleResiduals
-      - aggregate_trajectory_stats(traj) → CTRLTrajectoryStats
-      - compute_w_update_target(traj, target_return_z) → scalar tensor
-  - src/algos/__init__.py: exported all 7 new names
-  - tests/unit/test_ctrl.py:
-    - Added QuadraticCritic import
-    - Fixed two float-equality warnings (traj.w == 1.15 → pytest.approx)
-    - Added 24 new Phase 8A tests covering shapes, terminal condition, finite values,
-      zero-entropy residuals, no-grad, stored metadata, and public API imports
-- Verification run in .venv:
-  - `.venv/bin/python3 -m pytest tests/unit/test_ctrl.py -q --tb=short`: 57 passed in 1.35s
-  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short`: 280 passed in 4.13s
-- Known risks / open questions:
-  1. evaluate_critic_on_trajectory takes explicit dt parameter; trainer must supply it
-     from config (horizon / n_steps). This is intentional — keeps the function general.
-  2. Residuals are detached; trainer re-evaluates critic/actor with grad tracking for updates.
-  3. No optimizer steps, w scheduling, or training loops introduced.
-- Requesting review from: Codex
-
----
-[Codex | 2026-03-27 15:01:20 EDT]
-Review of Claude's Phase 8A CTRL objective and loss-primitive foundation:
-
-Findings:
-1. The terminal-target helper does not match the assigned deliverable.
-   - The active task asked for:
-     - `a helper for the paper-aligned terminal mean-variance-style target tied to w`
-     - see current handoff summary in `shared_agent_files/dialogue.txt`
-   - But the implemented helper in `src/algos/ctrl.py:442` is:
-     - `compute_w_update_target(traj, target_return_z) -> x_T - z`
-   - That quantity is the outer-loop multiplier-update signal, not the paper-aligned terminal mean-variance-style target tied to the current `w`.
-   - The paper-aligned terminal quantity tied to `w` in the current repo formulation is the terminal critic condition:
-     - `J(T, x_T; w) = (x_T - w)^2 - (w - z)^2`
-   - The repo references support this:
-     - `references/portfolio_mv_ctrl_complete_pseudocode.md`, baseline actor/critic structure section
-     - `references/portfolio_mv_papers_algorithm_summary.md`, Section 3.3 / terminal-form discussion
-   - So the current Phase 8A block is not fully approved yet. Claude added a useful helper, but it is a different helper than the one assigned.
-
-Assessment:
-- The new critic-evaluation and trajectory-stat helpers are directionally good.
-- `compute_w_update_target()` may still be useful later for the outer-loop update.
-- But as written, it does not satisfy the requested terminal-objective primitive for this task.
-
-To Claude:
-- Task: Phase 8A terminal-target follow-up
-- Scope: keep this strictly limited to:
-  - `src/algos/ctrl.py`
-  - `src/algos/__init__.py`
-  - directly related unit tests in `tests/unit/test_ctrl.py`
-- Required changes:
-  1. Add the actually requested terminal mean-variance-style helper tied to `w`.
-  2. It should expose the paper-aligned terminal quantity consistent with the repo's current critic formulation:
-     - terminal objective / target quantity based on `(x_T - w)^2 - (w - z)^2`
-  3. You may keep `compute_w_update_target()` if you think it is still useful, but it must be clearly distinguished from the terminal objective helper.
-  4. Add tests that explicitly separate:
-     - the terminal objective quantity tied to `w`
-     - the outer-loop `w`-update error `x_T - z`
-  5. Do not broaden into trainer loops, optimizer steps, or `w` scheduling.
-- Verification:
-  - run in `.venv` using whichever interpreter path exists locally
-  - `<venv_python> -m pytest tests/unit/test_ctrl.py -q`
-  - `<venv_python> -m pytest tests/unit -q`
-- Stop conditions:
-  1. Stop if the repo references are still too ambiguous to name the terminal helper cleanly.
-  2. Stop if this would require introducing trainer logic or changing model formulas.
-  3. Stop if required `.venv` verification fails or cannot be run.
-  4. Stop after this tiny follow-up and request review from Codex.
-- Review required: Codex
-- Go/No-Go: GO
-
-To Ricky:
-- I am not approving Phase 8A yet because the terminal-target helper currently implements the outer-loop `w` update signal rather than the assigned `w`-tied terminal mean-variance quantity.
-
----
-[Claude Code | 2026-03-27 15:04:35 EDT]
-Verification request:
-- Task completed: Phase 8A terminal-target follow-up
-- Files changed:
-  - src/algos/ctrl.py:
-    - Added compute_terminal_mv_objective(traj, target_return_z) → (x_T − w)² − (w − z)²
-      - THEOREM-ALIGNED: paper-aligned terminal critic condition from QuadraticCritic at t=T
-      - docstring distinguishes it from compute_w_update_target (the outer-loop multiplier signal)
-    - Updated compute_w_update_target docstring to explicitly note the distinction
-  - src/algos/__init__.py: exported compute_terminal_mv_objective
-  - tests/unit/test_ctrl.py:
-    - Added compute_terminal_mv_objective import
-    - Added 5 new tests:
-      - test_terminal_mv_objective_is_scalar
-      - test_terminal_mv_objective_formula: verifies (x_T − w)² − (w − z)²
-      - test_terminal_mv_objective_finite
-      - test_terminal_mv_objective_matches_critic_terminal: verifies equality with QuadraticCritic.forward at t=T
-      - test_terminal_mv_and_w_target_are_distinct: explicit separation of the two terminal quantities
-    - Updated test_phase8a_public_api_imports to include compute_terminal_mv_objective
-- Verification run in .venv:
-  - `.venv/bin/python3 -m pytest tests/unit/test_ctrl.py -q --tb=short`: 62 passed in 1.55s
-  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short`: 285 passed in 1.97s
-- Known risks / open questions: none. Pure computation helpers; no trainer or optimizer logic introduced.
-- Requesting review from: Codex
-
----
-[Codex | 2026-03-27 15:08:28 EDT]
-Review of Claude's Phase 8A terminal-target follow-up:
-
-Findings:
-- No blocking findings.
-
-Assessment:
-- The new `compute_terminal_mv_objective()` helper now matches the assigned deliverable.
-- The distinction between:
-  - terminal MV objective tied to `w`, and
-  - outer-loop `w`-update signal `x_T - z`
-  is now explicit in both code and tests.
-- The added tests correctly check:
-  - formula identity,
-  - scalar shape / finiteness,
-  - agreement with `QuadraticCritic` at terminal time,
-  - non-equivalence to the `w`-update signal.
-
-Non-blocking note:
-- `evaluate_critic_on_trajectory(..., dt)` still relies on the caller to pass a consistent `dt`.
-- That is acceptable for this phase, but trainer code should either derive `dt` from a trusted config source or store it alongside trajectory metadata rather than letting it drift silently.
-
-Phase 8A status:
-- Approved.
-
-To Claude:
-- Stay paused until the next bounded task is assigned.
-
-To Ricky:
-- Phase 8A is now approved.
-
----
-[Codex | 2026-03-27 15:09:37 EDT]
-Next bounded task assignment:
-
-To Claude:
-- Task: Phase 8B CTRL gradient-tracked re-evaluation foundation
-- Scope: keep this strictly limited to:
-  - `src/algos/ctrl.py`
-  - `src/algos/__init__.py`
-  - directly related unit tests under `tests/unit/`
-- Expected files:
-  - `src/algos/ctrl.py`
-  - `src/algos/__init__.py`
-  - `tests/unit/test_ctrl.py` and/or one new directly related unit test file if cleaner
-- Required changes:
-  1. Add pure helpers that re-evaluate the stored trajectory under the current actor / critic **with gradient tracking preserved**.
-  2. Keep this block trainer-free and optimizer-free.
-  3. At minimum provide a clean typed interface for:
-     - re-evaluated actor log-probs on stored trajectory actions,
-     - re-evaluated actor entropy terms along the stored trajectory times,
-     - re-evaluated critic values along the stored trajectory,
-     - explicit preservation of grad paths for later trainer use.
-  4. These helpers should be clearly distinguished from the existing detached diagnostic helpers from Phase 8A.
-  5. If useful, introduce one small typed dataclass to bundle the gradient-tracked tensors for later trainer consumption.
-  6. Do not start:
-     - optimizer steps,
-     - actual actor/critic parameter updates,
-     - replay-buffer training loops,
-     - `w` schedules,
-     - trace accumulation,
-     - checkpoint/logging work.
-- Verification:
-  - run in `.venv` using whichever interpreter path exists locally
-  - `<venv_python> -m pytest tests/unit/test_ctrl.py -q`
-  - `<venv_python> -m pytest tests/unit -q`
-  - if you add a dedicated new CTRL helper test file, include it explicitly in the verification report
-- Stop conditions:
-  1. Stop if the current actor / critic interfaces are insufficient for a clean gradient-tracked re-evaluation helper without broadening scope.
-  2. Stop if this task would require introducing trainer loops or committing to a full optimizer objective not yet stabilized in the repo references.
-  3. Stop if required `.venv` verification fails or cannot be run.
-  4. Stop after this bounded task and request review from Codex.
-- Review required: Codex
-- Go/No-Go: GO
-
-Task-specific intent:
-- Prepare the CTRL algorithm layer for trainer implementation by separating:
-  - detached rollout diagnostics / objective primitives already completed in Phase 8A,
-  - from gradient-tracked re-evaluation primitives needed for future actor / critic losses.
-
-To Ricky:
-- No additional input is needed for this next bounded task.
-
----
-[Claude Code | 2026-03-27 15:15:56 EDT]
-Verification request:
-- Task completed: Phase 8B CTRL gradient-tracked re-evaluation foundation
-- Files changed:
-  - src/algos/ctrl.py:
-    - Updated module docstring to cover Phase 8B scope
-    - Added CTRLGradEval dataclass: gradient-tracked log_probs, entropy_terms, j_at_steps, j_at_next
-      - Fields j_at_steps / j_at_next use lowercase to satisfy linter (python:S116)
-      - Explicitly distinguished from CTRLCriticEval (Phase 8A, detached)
-    - Added reeval_ctrl_trajectory(actor, critic, traj, dt) → CTRLGradEval
-      - Step-by-step loop (not batched) to remain safe with scalar-t actor API
-      - No torch.no_grad() — gradient paths preserved through actor φ and critic θ
-      - Stored trajectory actions/times/wealth are detached inputs; grad flows only through model params
-  - src/algos/__init__.py: exported CTRLGradEval, reeval_ctrl_trajectory
-  - tests/unit/test_ctrl.py:
-    - Added CTRLGradEval, reeval_ctrl_trajectory imports
-    - Added 18 new Phase 8B tests including:
-      - shape checks for all four tensors
-      - requires_grad checks for log_probs, entropy_terms, j_at_steps, j_at_next
-      - value consistency: log_probs/entropy match stored trajectory; j values match Phase 8A detached output
-      - backward() tests: loss.backward() reaches actor.log_phi1.grad and critic.theta1.grad
-      - type distinction test: CTRLGradEval is not CTRLCriticEval; detached vs grad-tracked confirmed
-      - public API import test
-- Verification run in .venv:
-  - `.venv/bin/python3 -m pytest tests/unit/test_ctrl.py -q --tb=short`: 80 passed in 1.52s
-  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short`: 303 passed in 1.64s
-- Known risks / open questions:
-  1. reeval_ctrl_trajectory uses a per-step loop rather than batched actor calls; safe with the
-     current scalar-t actor API. A batched path would require variance(t) to unsqueeze for
-     broadcasting with multi-asset mean — noted as a future improvement if performance matters.
-  2. j_at_steps / j_at_next field names are lowercase (j_at_steps not J_at_steps) to satisfy
-     linter python:S116. CTRLCriticEval still uses J_at_steps — inconsistency noted but left
-     for a future cleanup pass to avoid breaking existing tests.
-- Requesting review from: Codex
+- The scalar loss helpers in `src/algos/ctrl.py` are approved as repo surrogates, not direct full implementations of the companion modified-online entropy-gradient machinery.

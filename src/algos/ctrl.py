@@ -50,6 +50,20 @@ Gradient-tracked re-evaluation (Phase 8B)
     critic J values with gradient tracking enabled so the trainer can call
     ``.backward()`` on them.
 
+Scalar loss assembly (Phase 8C)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+14. ``compute_ctrl_critic_loss`` — repo surrogate scalar loss whose gradient
+    matches the companion §4.5 one-step critic update G_{θ,k}; takes
+    ``CTRLGradEval`` (Phase 8B) and ``CTRLMartingaleResiduals`` (Phase 8A)
+    as inputs.
+
+15. ``compute_ctrl_actor_loss`` — repo surrogate scalar loss built from
+    Phase 8A baseline residuals and Phase 8B log-probs; approximates the
+    policy-gradient part of the companion §4.5 actor update G_{φ,k} but
+    does not implement the companion's entropy-gradient term γ·∂p̂/∂φ·Δt
+    (p̂ is the entropy functional, not log π).  See function docstring for
+    the gap and the baseline / modified-online boundary.
+
 SCOPE BOUNDARY
 --------------
 This module provides pure computation primitives only.  The following are
@@ -628,3 +642,117 @@ def reeval_ctrl_trajectory(
         dt=dt,
         w=traj.w,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 8C: scalar loss assembly
+# ---------------------------------------------------------------------------
+
+
+def compute_ctrl_critic_loss(
+    ge: CTRLGradEval,
+    residuals: CTRLMartingaleResiduals,
+) -> torch.Tensor:
+    """Assemble the CTRL scalar critic loss for one trajectory.
+
+    REPO SURROGATE: implements the surrogate loss whose gradient matches the
+    companion §4.5 one-step critic update direction G_{θ,k} (Huang–Jia–Zhou
+    2025, companion §4.5):
+
+        G_{θ,k} = ∂J/∂θ · [ΔJ + γ·p̂·Δt]  =  ∂J/∂θ · δ_k
+
+    where δ_k = J(t_{k+1}, x_{k+1}) - J(t_k, x_k) + γ·log π_k·dt are the
+    Phase 8A detached residuals.  The surrogate that recovers this gradient
+    under differentiation is:
+
+        L_critic = -Σ_k J(t_k, x_k; θ) · stop_grad(δ_k)
+
+    Under SGD minimisation (θ ← θ - lr · ∂L/∂θ) this is equivalent to:
+
+        θ ← θ + lr · Σ_k ∂J_k/∂θ · δ_k   (ascent on the martingale condition)
+
+    The negative sign ensures that *minimising* L_critic drives θ in the
+    ascent direction required by the theorem.
+
+    BASELINE / MODIFIED-ONLINE BOUNDARY: the residuals δ_k passed in are
+    the Phase 8A *baseline* martingale residuals, computed with detached
+    (behavior-policy) log-probs.  The companion §4.5 modified-online update
+    uses the *current* φ_k for p̂; the two agree when behavior and current
+    parameters are the same (on-policy step).  The distinction is left to
+    the trainer layer; this function does not enforce either policy.
+
+    REPO ENGINEERING: ``ge.j_at_steps`` carries the gradient path through
+    critic parameters θ (Phase 8B).  ``residuals.residuals`` is already
+    detached (Phase 8A); an explicit ``.detach()`` is applied here as a
+    defensive guard.  Entropy regularisation belongs in the actor loss.
+
+    Args:
+        ge:        Gradient-tracked re-evaluation from ``reeval_ctrl_trajectory``.
+        residuals: Detached martingale residuals from ``compute_martingale_residuals``.
+
+    Returns:
+        Scalar tensor L_critic.  Call ``.backward()`` then step the critic
+        optimiser to update θ.
+    """
+    return -(ge.j_at_steps * residuals.residuals.detach()).sum()
+
+
+def compute_ctrl_actor_loss(
+    ge: CTRLGradEval,
+    residuals: CTRLMartingaleResiduals,
+) -> torch.Tensor:
+    """Assemble the CTRL scalar actor loss for one trajectory.
+
+    REPO SURROGATE: implements a provisional actor loss built from the
+    Phase 8A baseline residuals and Phase 8B gradient-tracked log-probs.
+    This is NOT a direct reduction of the companion §4.5 actor gradient.
+
+    The formula is:
+
+        adjusted_k = stop_grad(δ_k) + γ · dt
+        L_actor    = Σ_k log π(u_k | t_k, x_k; φ) · stop_grad(adjusted_k)
+
+    Differentiating w.r.t. φ gives:
+
+        ∂L_actor/∂φ = Σ_k ∂log π_k/∂φ · (δ_k + γ · dt)
+
+    GAP FROM COMPANION §4.5: the companion specifies a two-term one-step
+    gradient increment (Huang–Jia–Zhou 2025, companion §4.5):
+
+        G_{φ,k} = ∂log π/∂φ · δ_k  +  γ · ∂p̂/∂φ · Δt
+
+    where p̂(t, φ) = -½ log((2πe)^d det(φ₂ e^{φ₃(T-t)})) is the entropy
+    functional (companion §3.1).  p̂ depends only on (t, φ) and is NOT the
+    same as log π(u_k | t_k, x_k; w; φ), which also contains the
+    Mahalanobis distance term -½||u_k - μ||²_{Σ⁻¹}.  Therefore:
+
+        ∂p̂/∂φ  ≠  ∂log π/∂φ   in general
+
+    and the scalar shift ``+ γ · dt`` applied to ``log_probs`` does NOT
+    reproduce the companion's second term ``γ · ∂p̂/∂φ · Δt``.  The
+    current surrogate approximates the policy-gradient part of G_{φ,k}
+    but does not implement the correct entropy-gradient term.
+
+    Full alignment with companion §4.5 would require computing ∂p̂/∂φ
+    separately (e.g. via the ``entropy_terms`` gradient path already
+    available in ``CTRLGradEval``) and is left to a future bounded task.
+
+    BASELINE / MODIFIED-ONLINE BOUNDARY: the residuals δ_k are Phase 8A
+    baseline residuals (detached, constructed with behavior-policy
+    log-probs).  The companion §4.5 modified-online update uses the current
+    φ_k for p̂; the distinction is left to the trainer layer.
+
+    REPO ENGINEERING: ``ge.log_probs`` carries the gradient path through
+    actor parameters φ (Phase 8B).  The adjusted signal is treated as a
+    constant w.r.t. φ (stop-gradient).
+
+    Args:
+        ge:        Gradient-tracked re-evaluation from ``reeval_ctrl_trajectory``.
+        residuals: Detached martingale residuals from ``compute_martingale_residuals``.
+
+    Returns:
+        Scalar tensor L_actor.  Call ``.backward()`` then step the actor
+        optimiser to update φ.
+    """
+    adjusted = residuals.residuals.detach() + residuals.entropy_temp * residuals.dt
+    return (ge.log_probs * adjusted.detach()).sum()

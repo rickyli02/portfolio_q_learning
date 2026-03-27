@@ -12,6 +12,8 @@ from src.algos.ctrl import (
     CTRLTrajectoryStats,
     aggregate_trajectory_stats,
     collect_ctrl_trajectory,
+    compute_ctrl_actor_loss,
+    compute_ctrl_critic_loss,
     compute_martingale_residuals,
     compute_terminal_mv_objective,
     compute_w_update_target,
@@ -776,3 +778,191 @@ def test_phase8b_public_api_imports():
     from src.algos import CTRLGradEval, reeval_ctrl_trajectory
     assert CTRLGradEval is not None
     assert callable(reeval_ctrl_trajectory)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8C helpers
+# ---------------------------------------------------------------------------
+
+def _make_grad_eval_and_residuals(
+    n_steps: int = 10,
+    entropy_temp: float = 0.1,
+) -> tuple[CTRLGradEval, CTRLMartingaleResiduals]:
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env(n_steps=n_steps)
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    dt = 1.0 / n_steps
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=dt)
+    residuals = compute_martingale_residuals(ce, traj, entropy_temp=entropy_temp)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=dt)
+    return ge, residuals
+
+
+# ---------------------------------------------------------------------------
+# Phase 8C: compute_ctrl_critic_loss
+# ---------------------------------------------------------------------------
+
+def test_critic_loss_is_scalar():
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_critic_loss(ge, res)
+    assert loss.shape == ()
+
+
+def test_critic_loss_is_finite():
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_critic_loss(ge, res)
+    assert torch.isfinite(loss)
+
+
+def test_critic_loss_has_grad():
+    """L_critic must retain gradient path through critic parameters θ."""
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_critic_loss(ge, res)
+    assert loss.requires_grad
+
+
+def test_critic_loss_backward_updates_critic():
+    """backward() on L_critic must produce gradients for critic params."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=0.1)
+    res = compute_martingale_residuals(ce, traj, entropy_temp=0.1)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=0.1)
+    loss = compute_ctrl_critic_loss(ge, res)
+    loss.backward()
+    assert critic.theta1.grad is not None
+
+
+def test_critic_loss_no_grad_to_actor():
+    """L_critic must not flow gradients to actor parameters φ."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=0.1)
+    res = compute_martingale_residuals(ce, traj, entropy_temp=0.1)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=0.1)
+    loss = compute_ctrl_critic_loss(ge, res)
+    loss.backward()
+    # Actor params should have no grad from critic loss
+    assert actor.log_phi1.grad is None
+
+
+def test_critic_loss_formula():
+    """L_critic = -Σ_k J_k * δ_k  (residuals treated as constants)."""
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_critic_loss(ge, res)
+    expected = -(ge.j_at_steps * res.residuals.detach()).sum()
+    assert loss.item() == pytest.approx(expected.item(), abs=1e-6)
+
+
+def test_critic_loss_zero_residuals():
+    """If all residuals are zero, L_critic = 0."""
+    ge, res = _make_grad_eval_and_residuals()
+    zero_res = CTRLMartingaleResiduals(
+        residuals=torch.zeros_like(res.residuals),
+        entropy_temp=res.entropy_temp,
+        dt=res.dt,
+    )
+    loss = compute_ctrl_critic_loss(ge, zero_res)
+    assert loss.item() == pytest.approx(0.0, abs=1e-8)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8C: compute_ctrl_actor_loss
+# ---------------------------------------------------------------------------
+
+def test_actor_loss_is_scalar():
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_actor_loss(ge, res)
+    assert loss.shape == ()
+
+
+def test_actor_loss_is_finite():
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_actor_loss(ge, res)
+    assert torch.isfinite(loss)
+
+
+def test_actor_loss_has_grad():
+    """L_actor must retain gradient path through actor parameters φ."""
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_actor_loss(ge, res)
+    assert loss.requires_grad
+
+
+def test_actor_loss_backward_updates_actor():
+    """backward() on L_actor must produce gradients for actor params."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=0.1)
+    res = compute_martingale_residuals(ce, traj, entropy_temp=0.1)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=0.1)
+    loss = compute_ctrl_actor_loss(ge, res)
+    loss.backward()
+    assert actor.log_phi1.grad is not None
+
+
+def test_actor_loss_no_grad_to_critic():
+    """L_actor must not flow gradients to critic parameters θ."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=0.1)
+    res = compute_martingale_residuals(ce, traj, entropy_temp=0.1)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=0.1)
+    loss = compute_ctrl_actor_loss(ge, res)
+    loss.backward()
+    # Critic params should have no grad from actor loss
+    assert critic.theta1.grad is None
+
+
+def test_actor_loss_formula():
+    """L_actor = Σ_k log_π_k * (δ_k + γ·dt)."""
+    ge, res = _make_grad_eval_and_residuals()
+    loss = compute_ctrl_actor_loss(ge, res)
+    adjusted = res.residuals.detach() + res.entropy_temp * res.dt
+    expected = (ge.log_probs * adjusted.detach()).sum()
+    assert loss.item() == pytest.approx(expected.item(), abs=1e-6)
+
+
+def test_actor_loss_zero_entropy_temp():
+    """With entropy_temp=0 the adjusted signal equals δ_k."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    traj = collect_ctrl_trajectory(actor, env, w=1.0, seed=0)
+    ce = evaluate_critic_on_trajectory(critic, traj, dt=0.1)
+    res_zero = compute_martingale_residuals(ce, traj, entropy_temp=0.0)
+    ge = reeval_ctrl_trajectory(actor, critic, traj, dt=0.1)
+    loss = compute_ctrl_actor_loss(ge, res_zero)
+    expected = (ge.log_probs * res_zero.residuals.detach()).sum()
+    assert loss.item() == pytest.approx(expected.item(), abs=1e-6)
+
+
+def test_actor_loss_zero_residuals():
+    """With zero residuals and zero entropy_temp, L_actor = 0."""
+    ge, _ = _make_grad_eval_and_residuals(entropy_temp=0.0)
+    zero_res = CTRLMartingaleResiduals(
+        residuals=torch.zeros(ge.log_probs.shape[0]),
+        entropy_temp=0.0,
+        dt=0.1,
+    )
+    loss = compute_ctrl_actor_loss(ge, zero_res)
+    assert loss.item() == pytest.approx(0.0, abs=1e-8)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8C: public API imports
+# ---------------------------------------------------------------------------
+
+def test_phase8c_public_api_imports():
+    from src.algos import compute_ctrl_actor_loss, compute_ctrl_critic_loss
+    assert callable(compute_ctrl_critic_loss)
+    assert callable(compute_ctrl_actor_loss)
