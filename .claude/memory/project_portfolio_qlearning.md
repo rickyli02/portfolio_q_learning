@@ -12,9 +12,11 @@ Research repo building a modular, testable codebase for mean-variance portfolio 
 - Phase 3A features and masking foundation complete
 - Phase 3B synthetic environment foundation and constraint layer approved
 - Phase 4A config schema extension for algorithm selection and plotting complete
+- Phase 5A oracle benchmark core approved
 - Latest verified checks:
-  - `.venv/bin/pytest tests/unit -q` -> 141 passed
-  - `.venv/bin/python scripts/run_smoke_test.py` -> 6/6 passed
+  - `.venv/bin/pytest tests/unit/test_oracle.py -q` -> 33 passed
+  - `.venv/bin/pytest tests/unit -q` -> 174 passed
+  - `.venv/bin/python scripts/run_smoke_test.py` -> 6/6 passed (latest confirmed smoke status before Phase 5A)
 
 **Active implementation target:**
 - oracle benchmark from known synthetic parameters first

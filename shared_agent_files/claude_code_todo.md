@@ -8,7 +8,7 @@ This file should be treated as an implementation roadmap, not a paper note.
 
 ## Current snapshot
 
-As of 2026-03-26:
+As of 2026-03-27:
 
 - Phase 1 scaffold exists.
 - Phase 2 config/data foundation exists.
@@ -16,9 +16,11 @@ As of 2026-03-26:
 - Phase 3A features and masking foundation under `src/features/` is complete and verified.
 - Phase 3B environment foundation and constraint layer are approved.
 - Phase 4A config schema extension for algorithm selection and plotting is complete and verified.
+- Phase 5A oracle benchmark core is approved.
 - Latest Codex verification with current repo state is:
-  - `.venv/bin/pytest tests/unit -q -> 141 passed`
-  - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
+  - `.venv/bin/pytest tests/unit/test_oracle.py -q -> 33 passed`
+  - `.venv/bin/pytest tests/unit -q -> 174 passed`
+  - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed` (latest confirmed smoke status before Phase 5A)
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next

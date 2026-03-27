@@ -60,7 +60,11 @@ class EnvConfig:
 
     # GBM parameters (used when env_type == 'gbm')
     mu: list[float] = field(default_factory=lambda: [0.1])
-    """Expected log-return vector (annualised), one entry per risky asset."""
+    """Price-SDE drift vector b (annualised), one entry per risky asset.
+
+    This is not the expected log-return. The GBM environment computes
+    per-step log-drift as ``(mu - 0.5 * diag(sigma sigma^T)) * dt``.
+    """
 
     sigma: list[list[float]] = field(
         default_factory=lambda: [[0.2]]

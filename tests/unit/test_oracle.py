@@ -63,7 +63,6 @@ def test_coefficients_single_asset_shapes():
     )
     assert coeffs.B.shape == (1,)
     assert coeffs.cov.shape == (1, 1)
-    assert coeffs.cov_inv.shape == (1, 1)
     assert coeffs.sensitivity.shape == (1,)
 
 
@@ -98,7 +97,8 @@ def test_coefficients_stored_scalars():
     assert coeffs.gamma_embed == pytest.approx(1.3)
 
 
-def test_coefficients_cov_inv_is_true_inverse():
+def test_coefficients_sensitivity_satisfies_normal_equation():
+    """cov @ sensitivity should equal B (verifies the linear solve is correct)."""
     coeffs = compute_oracle_coefficients(
         mu=[0.1, 0.08],
         sigma=[[0.2, 0.0], [0.0, 0.15]],
@@ -106,8 +106,9 @@ def test_coefficients_cov_inv_is_true_inverse():
         horizon=1.0,
         gamma_embed=1.0,
     )
-    identity_approx = coeffs.cov @ coeffs.cov_inv
-    assert torch.allclose(identity_approx, torch.eye(2, dtype=torch.float64), atol=1e-10)
+    # [σσᵀ] sensitivity = B  ⟺  sensitivity = [σσᵀ]⁻¹ B
+    reconstructed_B = coeffs.cov @ coeffs.sensitivity
+    assert torch.allclose(reconstructed_B, coeffs.B, atol=1e-10)
 
 
 def test_coefficients_singular_sigma_raises():
@@ -242,9 +243,96 @@ def test_action_at_terminal_time():
     action = oracle_action(coeffs, t=T, wealth=wealth)
 
     # At t=T: virtual_target = gamma * exp(0) = gamma; gap = gamma - x = 0.1
-    B_val = mu_val - r
-    expected = B_val / sigma_val**2 * (gamma - 1.0)
+    b_val = mu_val - r
+    expected = b_val / sigma_val**2 * (gamma - 1.0)
     assert action.item() == pytest.approx(expected, rel=1e-5)
+
+
+def test_action_exact_correlated_multi_asset():
+    """Exact formula check for a correlated 2-asset case.
+
+    Parameters chosen so sensitivity can be verified by hand:
+      sigma = [[0.20, 0.05], [0.00, 0.15]]
+      cov   = [[0.0425, 0.0075], [0.0075, 0.0225]]   (det = 0.0009)
+      B     = [0.05, 0.03]
+      sensitivity = cov^{-1} B = [1.0, 1.0]  (exact, verified by hand)
+
+    So u(t=0, x=1.0) = [1.0, 1.0] * (gamma * exp(-r*T) - 1.0).
+    """
+    mu = [0.10, 0.08]
+    sigma = [[0.20, 0.05], [0.00, 0.15]]
+    r = 0.05
+    T = 1.0
+    gamma = 1.2
+    x = 1.0
+    t = 0.0
+
+    # Hand-derived: sensitivity = [1.0, 1.0] for these parameters
+    gap = gamma * math.exp(-r * T) - x
+    expected = torch.tensor([gap, gap], dtype=torch.float32)
+
+    coeffs = compute_oracle_coefficients(mu=mu, sigma=sigma, r=r, horizon=T, gamma_embed=gamma)
+    wealth = torch.tensor(x, dtype=torch.float32)
+    action = oracle_action(coeffs, t=t, wealth=wealth)
+
+    assert action.shape == (2,)
+    assert torch.allclose(action, expected, atol=1e-5)
+
+
+def test_action_correlated_sensitivity_satisfies_normal_equation():
+    """For the correlated case, verify cov @ sensitivity == B holds."""
+    coeffs = compute_oracle_coefficients(
+        mu=[0.10, 0.08],
+        sigma=[[0.20, 0.05], [0.00, 0.15]],
+        r=0.05, horizon=1.0, gamma_embed=1.2,
+    )
+    assert torch.allclose(coeffs.cov @ coeffs.sensitivity, coeffs.B, atol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# dtype behavior
+# ---------------------------------------------------------------------------
+
+
+def test_coefficients_are_float64():
+    """compute_oracle_coefficients should always return float64 tensors."""
+    coeffs = compute_oracle_coefficients(
+        mu=[0.1], sigma=[[0.2]], r=0.05, horizon=1.0, gamma_embed=1.1
+    )
+    assert coeffs.B.dtype == torch.float64
+    assert coeffs.cov.dtype == torch.float64
+    assert coeffs.sensitivity.dtype == torch.float64
+
+
+def test_oracle_action_inherits_wealth_dtype_float32():
+    """oracle_action output dtype should match the wealth tensor dtype."""
+    coeffs = compute_oracle_coefficients(
+        mu=[0.1], sigma=[[0.2]], r=0.05, horizon=1.0, gamma_embed=1.1
+    )
+    wealth = torch.tensor(1.0, dtype=torch.float32)
+    action = oracle_action(coeffs, t=0.5, wealth=wealth)
+    assert action.dtype == torch.float32
+
+
+def test_oracle_action_inherits_wealth_dtype_float64():
+    """oracle_action output dtype should match the wealth tensor dtype."""
+    coeffs = compute_oracle_coefficients(
+        mu=[0.1], sigma=[[0.2]], r=0.05, horizon=1.0, gamma_embed=1.1
+    )
+    wealth = torch.tensor(1.0, dtype=torch.float64)
+    action = oracle_action(coeffs, t=0.5, wealth=wealth)
+    assert action.dtype == torch.float64
+
+
+def test_oracle_action_batched_dtype_matches_wealth():
+    """Batched oracle_action dtype should match the batched wealth tensor dtype."""
+    coeffs = compute_oracle_coefficients(
+        mu=[0.1], sigma=[[0.2]], r=0.05, horizon=1.0, gamma_embed=1.1
+    )
+    wealth = torch.tensor([0.9, 1.0, 1.1], dtype=torch.float32)
+    action = oracle_action(coeffs, t=0.5, wealth=wealth)
+    assert action.dtype == torch.float32
+    assert action.shape == (3, 1)
 
 
 # ---------------------------------------------------------------------------

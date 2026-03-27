@@ -74,11 +74,9 @@ class OracleCoefficients:
     cov: torch.Tensor
     """Covariance matrix σ σᵀ, shape ``(n_risky, n_risky)``."""
 
-    cov_inv: torch.Tensor
-    """Inverse covariance matrix, shape ``(n_risky, n_risky)``."""
-
     sensitivity: torch.Tensor
-    """Precomputed [σσᵀ]⁻¹ B, shape ``(n_risky,)``."""
+    """[σσᵀ]⁻¹ B, shape ``(n_risky,)``.  Computed via a linear solve rather
+    than an explicit matrix inversion for numerical stability."""
 
     r: float
     """Risk-free rate (continuous compounding)."""
@@ -113,7 +111,8 @@ def compute_oracle_coefficients(
         ``OracleCoefficients`` with precomputed sensitivity vector and scalars.
 
     Raises:
-        ValueError: If ``sigma @ sigma.T`` is singular (cannot invert covariance).
+        ValueError: If ``sigma @ sigma.T`` is singular (no solution exists for
+            the linear system defining the oracle sensitivity vector).
     """
     mu_t = torch.as_tensor(mu, dtype=torch.float64)
     sigma_t = torch.as_tensor(sigma, dtype=torch.float64)
@@ -125,22 +124,20 @@ def compute_oracle_coefficients(
     # env.mu is b (price SDE drift), so no Ito correction needed.
     B = mu_t - r
 
-    # Inverse covariance — will raise if singular
+    # Sensitivity vector [σσᵀ]⁻¹ B via a linear solve (more numerically stable
+    # than computing an explicit inverse, especially for ill-conditioned
+    # covariance matrices from correlated assets or parameter sweeps).
     try:
-        cov_inv = torch.linalg.inv(cov)
+        sensitivity = torch.linalg.solve(cov, B)
     except torch.linalg.LinAlgError as exc:
         raise ValueError(
             "Cannot compute oracle coefficients: σ σᵀ is singular.  "
             "Check that the sigma matrix has full rank."
         ) from exc
 
-    # Sensitivity vector [σσᵀ]⁻¹ B, shape (n_risky,)
-    sensitivity = cov_inv @ B
-
     return OracleCoefficients(
         B=B,
         cov=cov,
-        cov_inv=cov_inv,
         sensitivity=sensitivity,
         r=r,
         horizon=horizon,
