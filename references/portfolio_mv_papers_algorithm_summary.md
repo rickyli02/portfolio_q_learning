@@ -30,44 +30,44 @@ A useful conceptual slogan is:
 
 ## 1.1 Core problem
 
-The paper studies a market with one bond and \(m\) risky assets. The bond evolves as
+The paper studies a market with one bond and $m$ risky assets. The bond evolves as
 
-\[
+$$
 dP_0(t)=r(t)P_0(t)\,dt,
-\]
+$$
 
 and the risky assets satisfy
 
-\[
+$$
 dP_i(t)=P_i(t)\left(b_i(t)\,dt+\sum_{j=1}^m \sigma_{ij}(t)\,dW^j(t)\right), \qquad i=1,\dots,m.
-\]
+$$
 
-The investor wealth \(x(t)\) evolves under self-financing trading as
+The investor wealth $x(t)$ evolves under self-financing trading as
 
-\[
+$$
 dx(t)=\left(r(t)x(t)+\sum_{i=1}^m [b_i(t)-r(t)]u_i(t)\right)dt
 +\sum_{j=1}^m\sum_{i=1}^m \sigma_{ij}(t)u_i(t)\,dW^j(t),
-\]
+$$
 
-where \(u_i(t)\) is the **dollar amount invested in risky asset \(i\)**.
+where $u_i(t)$ is the **dollar amount invested in risky asset $i$**.
 
 The mean–variance objective is the bi-criterion problem:
 
-\[
+$$
 \min \big(-\mathbb E[x(T)],\ \mathrm{Var}(x(T))\big).
-\]
+$$
 
-The efficient frontier is obtained by solving, for \(\mu>0\),
+The efficient frontier is obtained by solving, for $\mu>0$,
 
-\[
+$$
 \min_{u(\cdot)} -\mathbb E[x(T)] + \mu\,\mathrm{Var}(x(T)].
-\]
+$$
 
 ---
 
 ## 1.2 Main difficulty
 
-The term \((\mathbb E[x(T)])^2\) inside the variance makes the objective **non-separable** for dynamic programming. This is the central obstacle.
+The term $(\mathbb E[x(T)])^2$ inside the variance makes the objective **non-separable** for dynamic programming. This is the central obstacle.
 
 The paper's key idea is to **embed** the mean–variance problem into an auxiliary stochastic LQ problem.
 
@@ -75,20 +75,20 @@ The paper's key idea is to **embed** the mean–variance problem into an auxilia
 
 ## 1.3 Auxiliary problem and embedding
 
-Define the auxiliary problem \(A(\mu,\lambda)\):
+Define the auxiliary problem $A(\mu,\lambda)$:
 
-\[
+$$
 \min_{u(\cdot)} \mathbb E\{\mu x(T)^2 - \lambda x(T)\}.
-\]
+$$
 
-The important theorem is that any optimizer of the original weighted mean–variance problem is also an optimizer of this auxiliary problem for a suitable \(\lambda\).
+The important theorem is that any optimizer of the original weighted mean–variance problem is also an optimizer of this auxiliary problem for a suitable $\lambda$.
 
 This is the main algorithmic reduction:
 
 ### Classical implementation recipe
-1. Choose the risk-aversion / tradeoff parameter \(\mu>0\).
-2. Solve the auxiliary LQ problem \(A(\mu,\lambda)\).
-3. Determine the correct \(\lambda\) (equivalently \(\gamma=\lambda/(2\mu)\)) so that the solution corresponds to the desired mean–variance tradeoff.
+1. Choose the risk-aversion / tradeoff parameter $\mu>0$.
+2. Solve the auxiliary LQ problem $A(\mu,\lambda)$.
+3. Determine the correct $\lambda$ (equivalently $\gamma=\lambda/(2\mu)$) so that the solution corresponds to the desired mean–variance tradeoff.
 4. Recover the efficient policy and efficient frontier.
 
 ---
@@ -97,33 +97,33 @@ This is the main algorithmic reduction:
 
 Set
 
-\[
+$$
 \gamma = \frac{\lambda}{2\mu}, \qquad y(t)=x(t)-\gamma.
-\]
+$$
 
 Then the auxiliary problem becomes
 
-\[
+$$
 \min \mathbb E\left[\frac{\mu}{2} y(T)^2\right]
-\]
+$$
 
 subject to a linear controlled SDE
 
-\[
+$$
 dy(t)=\{A(t)y(t)+B(t)u(t)+f(t)\}dt+\sum_{j=1}^m D_j(t)u(t)\,dW^j(t),
-\]
+$$
 
 with
 
-\[
+$$
 A(t)=r(t), \qquad B(t)=(b_1(t)-r(t),\dots,b_m(t)-r(t)),
-\]
+$$
 
-\[
+$$
 f(t)=\gamma r(t), \qquad D_j(t)=(\sigma_{1j}(t),\dots,\sigma_{mj}(t)).
-\]
+$$
 
-This is a stochastic LQ control problem, except that the running control penalty \(R\) is zero, so the problem is **singular**.
+This is a stochastic LQ control problem, except that the running control penalty $R$ is zero, so the problem is **singular**.
 
 ---
 
@@ -131,38 +131,38 @@ This is a stochastic LQ control problem, except that the running control penalty
 
 For the general LQ problem, the paper introduces the Riccati equation
 
-\[
+$$
 \dot P(t)
 =
 - P(t)A(t)-A(t)^\top P(t)-Q(t)
 +P(t)B(t)\Big(R(t)+\sum_{j=1}^m D_j(t)^\top P(t)D_j(t)\Big)^{-1}B(t)^\top P(t),
-\]
+$$
 
 with terminal condition
 
-\[
+$$
 P(T)=H,
-\]
+$$
 
 and positivity condition
 
-\[
+$$
 K(t):=R(t)+\sum_{j=1}^m D_j(t)^\top P(t)D_j(t) > 0.
-\]
+$$
 
-Then define \(g(t)\) from
+Then define $g(t)$ from
 
-\[
+$$
 \dot g(t)= -A(t)^\top g(t)
 +P(t)B(t)K(t)^{-1}B(t)^\top g(t)-P(t)f(t),
 \qquad g(T)=0.
-\]
+$$
 
 The optimal feedback control is
 
-\[
+$$
 u^*(t,x)= -K(t)^{-1}B(t)^\top (P(t)x+g(t)).
-\]
+$$
 
 This is the core general-purpose LQ solution used by the portfolio problem.
 
@@ -172,30 +172,30 @@ This is the core general-purpose LQ solution used by the portfolio problem.
 
 Define
 
-\[
+$$
 \rho(t)=B(t)[\sigma(t)\sigma(t)^\top]^{-1}B(t)^\top.
-\]
+$$
 
 Then the scalar Riccati equation becomes
 
-\[
+$$
 \dot P(t) = (\rho(t)-2r(t))P(t), \qquad P(T)=\mu,
-\]
+$$
 
 so
 
-\[
+$$
 P(t)=\mu \exp\left(-\int_t^T (\rho(s)-2r(s))\,ds\right).
-\]
+$$
 
 The auxiliary optimal control becomes
 
-\[
+$$
 \bar u(t,x)
 =
 [\sigma(t)\sigma(t)^\top]^{-1}B(t)^\top
 \left(\gamma e^{-\int_t^T r(s)\,ds}-x\right).
-\]
+$$
 
 This is the explicit model-based optimal feedback allocation.
 
@@ -203,15 +203,15 @@ This is the explicit model-based optimal feedback allocation.
 
 ## 1.7 Efficient frontier
 
-The paper derives closed forms for \(\mathbb E[x(T)]\) and \(\mathbb E[x(T)^2]\), and then obtains the efficient frontier:
+The paper derives closed forms for $\mathbb E[x(T)]$ and $\mathbb E[x(T)^2]$, and then obtains the efficient frontier:
 
-\[
+$$
 \mathrm{Var}(\bar x(T))
 =
 \frac{e^{-\int_0^T \rho(t)\,dt}}
 {1-e^{-\int_0^T \rho(t)\,dt}}
 \left(\mathbb E[\bar x(T)]-x_0 e^{\int_0^T r(t)\,dt}\right)^2.
-\]
+$$
 
 This gives the exact continuous-time mean–variance frontier.
 
@@ -222,27 +222,27 @@ This gives the exact continuous-time mean–variance frontier.
 Although this is not an RL paper, it still contains a very clear computational pipeline:
 
 ### Practical solution pipeline
-1. Specify \(r(t)\), \(b(t)\), \(\sigma(t)\).
-2. Compute \(\rho(t)=B(\sigma\sigma^\top)^{-1}B^\top\).
-3. Solve for \(P(t)\).
-4. Solve for \(g(t)\) or directly substitute the specialized formula.
-5. Compute the feedback control \(\bar u(t,x)\).
+1. Specify $r(t)$, $b(t)$, $\sigma(t)$.
+2. Compute $\rho(t)=B(\sigma\sigma^\top)^{-1}B^\top$.
+3. Solve for $P(t)$.
+4. Solve for $g(t)$ or directly substitute the specialized formula.
+5. Compute the feedback control $\bar u(t,x)$.
 6. Back out the efficient frontier and portfolio corresponding to a chosen target return / tradeoff.
 
 ---
 
 ## 1.9 Important details emphasized by the paper
 
-- The mean–variance problem is **not** a standard dynamic programming problem because of \((\mathbb E[x(T)])^2\).
+- The mean–variance problem is **not** a standard dynamic programming problem because of $(\mathbb E[x(T)])^2$.
 - The **embedding into an auxiliary LQ problem** is the key structural move.
-- The resulting LQ problem is **singular**, with \(R=0\), but still solvable because the diffusion term contributes positively through \(\sum D_j^\top P D_j\).
+- The resulting LQ problem is **singular**, with $R=0$, but still solvable because the diffusion term contributes positively through $\sum D_j^\top P D_j$.
 - The framework is intended to be broader than this one portfolio problem and can handle more complicated settings.
 
 ---
 
 ## 1.10 Implementation caveats and ambiguities
 
-1. **This is fully model-based.** You need \(r(t)\), \(b(t)\), and \(\sigma(t)\).
+1. **This is fully model-based.** You need $r(t)$, $b(t)$, and $\sigma(t)$.
 2. **No estimation procedure is given.** The paper solves the control problem assuming the coefficients are known.
 3. **No transaction costs or trading frictions.**
 4. **Continuous-time exact solution**, but actual implementation needs discretization.
@@ -258,75 +258,75 @@ This paper is the bridge between the classical continuous-time MV problem and a 
 
 The paper simplifies to **one risky asset + one riskless asset**. The risky asset price follows
 
-\[
+$$
 dS_t = S_t(\mu\,dt+\sigma\,dW_t),
-\]
+$$
 
-and the discounted wealth under control \(u_t\) evolves as
+and the discounted wealth under control $u_t$ evolves as
 
-\[
+$$
 dx_t^u = \sigma u_t(\rho\,dt+dW_t), \qquad \rho=\frac{\mu-r}{\sigma}.
-\]
+$$
 
 The classical pre-committed mean–variance problem is
 
-\[
+$$
 \min_u \mathrm{Var}(x_T^u)
 \quad\text{s.t.}\quad
 \mathbb E[x_T^u]=z,
-\]
+$$
 
-or, with Lagrange multiplier \(w\),
+or, with Lagrange multiplier $w$,
 
-\[
+$$
 \min_u \mathbb E[(x_T^u-w)^2]-(w-z)^2.
-\]
+$$
 
 The classical optimal policy is
 
-\[
+$$
 u^*(t,x;w) = -\frac{\rho}{\sigma}(x-w),
-\]
+$$
 
 with optimal value
 
-\[
+$$
 V^{cl}(t,x;w) = (x-w)^2e^{-\rho^2(T-t)}-(w-z)^2.
-\]
+$$
 
 ---
 
 ## 2.2 Exploratory control and relaxed dynamics
 
-Instead of using a deterministic action \(u_t\), the paper uses a **distributional control** \(\pi_t(u)\), i.e. a density over actions.
+Instead of using a deterministic action $u_t$, the paper uses a **distributional control** $\pi_t(u)$, i.e. a density over actions.
 
 Define mean and variance of the exploratory action:
 
-\[
+$$
 \mu_t = \int_{\mathbb R} u\,\pi_t(u)\,du,
 \qquad
 \sigma_t^2 = \int_{\mathbb R} u^2\pi_t(u)\,du - \mu_t^2.
-\]
+$$
 
 Then the relaxed / exploratory wealth dynamics are
 
-\[
+$$
 dX_t^\pi
 =
 \rho\sigma \mu_t\,dt
 +
 \sigma\sqrt{\mu_t^2+\sigma_t^2}\,dW_t.
-\]
+$$
 
 The differential-entropy penalty is
 
-\[
+$$
 H(\pi)= -\int_0^T \int_{\mathbb R}\pi_t(u)\ln \pi_t(u)\,du\,dt.
-\]
+$$
 
 The exploratory mean–variance objective is
 
-\[
+$$
 \min_{\pi}
 \mathbb E\left[
 (X_T^\pi-w)^2
@@ -334,9 +334,9 @@ The exploratory mean–variance objective is
 \lambda\int_0^T\int_{\mathbb R}\pi_t(u)\ln\pi_t(u)\,du\,dt
 \right]
 -(w-z)^2,
-\]
+$$
 
-where \(\lambda>0\) is the exploration weight / temperature.
+where $\lambda>0$ is the exploration weight / temperature.
 
 ---
 
@@ -344,7 +344,7 @@ where \(\lambda>0\) is the exploration weight / temperature.
 
 The HJB equation becomes
 
-\[
+$$
 v_t(t,x;w)
 +
 \min_{\pi\in\mathcal P(\mathbb R)}
@@ -355,51 +355,51 @@ v_t(t,x;w)
 +\lambda\ln\pi(u)
 \right)\pi(u)\,du
 =0,
-\]
+$$
 
 with terminal condition
 
-\[
+$$
 v(T,x;w)=(x-w)^2-(w-z)^2.
-\]
+$$
 
-Solving the minimization over \(\pi\) yields a **Gaussian optimal feedback policy**:
+Solving the minimization over $\pi$ yields a **Gaussian optimal feedback policy**:
 
-\[
+$$
 \pi^*(u;t,x,w)
 =
 \mathcal N\left(
 -\frac{\rho}{\sigma}\frac{v_x(t,x;w)}{v_{xx}(t,x;w)},
 \ \frac{\lambda}{\sigma^2 v_{xx}(t,x;w)}
 \right).
-\]
+$$
 
 After solving the HJB, the paper gets the explicit optimal value function
 
-\[
+$$
 V(t,x;w)
 =
 (x-w)^2 e^{-\rho^2(T-t)}
 +\frac{\lambda\rho^2}{4}(T^2-t^2)
 -\frac{\lambda}{2}\left(\rho^2T-\ln(\sigma^2\pi\lambda)\right)(T-t)
 -(w-z)^2,
-\]
+$$
 
 and therefore the explicit optimal exploratory policy
 
-\[
+$$
 \pi^*(u;t,x,w)
 =
 \mathcal N\left(
 -\frac{\rho}{\sigma}(x-w),
 \ \frac{\lambda}{2\sigma^2}e^{\rho^2(T-t)}
 \right).
-\]
+$$
 
 ### Important interpretation
 - **Mean** of Gaussian = exploitation term.
 - **Variance** of Gaussian = exploration term.
-- Exploration variance is **time-decaying** as \(t\to T\), i.e. annealing is endogenous.
+- Exploration variance is **time-decaying** as $t\to T$, i.e. annealing is endogenous.
 
 This is one of the most important conceptual contributions of the paper.
 
@@ -407,9 +407,9 @@ This is one of the most important conceptual contributions of the paper.
 
 ## 2.4 Optimal wealth process under exploration
 
-Under \(\pi^*\), the wealth satisfies
+Under $\pi^*$, the wealth satisfies
 
-\[
+$$
 dX_t^*
 =
 -\rho^2(X_t^*-w)\,dt
@@ -419,16 +419,16 @@ dX_t^*
 }\,dW_t,
 \qquad
 X_0^*=x_0.
-\]
+$$
 
 The Lagrange multiplier is still
 
-\[
+$$
 w=
 \frac{ze^{\rho^2T}-x_0}{e^{\rho^2T}-1}.
-\]
+$$
 
-The paper stresses that the classical and exploratory problems have the **same \(w\)**.
+The paper stresses that the classical and exploratory problems have the **same $w$**.
 
 ---
 
@@ -436,39 +436,39 @@ The paper stresses that the classical and exploratory problems have the **same \
 
 The paper proves a solvability equivalence between the classical and exploratory problems: solving either one gives the other.
 
-As \(\lambda\to 0\),
+As $\lambda\to 0$,
 
 - the exploratory Gaussian policy converges weakly to the deterministic classical optimizer,
 - the exploratory value function converges to the classical value function.
 
 The exploration cost is explicitly
 
-\[
+$$
 C^{u^*,\pi^*}(0,x_0;w)=\frac{\lambda T}{2}.
-\]
+$$
 
-So the cost of exploration is linear in both the exploration weight \(\lambda\) and horizon \(T\).
+So the cost of exploration is linear in both the exploration weight $\lambda$ and horizon $T$.
 
 ---
 
 ## 2.6 Policy Improvement Theorem (PIT)
 
-For any admissible feedback policy \(\pi\) with smooth value function \(V^\pi\), define the improved policy
+For any admissible feedback policy $\pi$ with smooth value function $V^\pi$, define the improved policy
 
-\[
+$$
 \tilde\pi(u;t,x,w)
 =
 \mathcal N\left(
 -\frac{\rho}{\sigma}\frac{V^\pi_x(t,x;w)}{V^\pi_{xx}(t,x;w)},
 \ \frac{\lambda}{\sigma^2V^\pi_{xx}(t,x;w)}
 \right).
-\]
+$$
 
 Then
 
-\[
+$$
 V^{\tilde\pi}(t,x;w)\le V^\pi(t,x;w).
-\]
+$$
 
 This is the theoretical basis for iterative policy improvement.
 
@@ -478,11 +478,11 @@ This is the theoretical basis for iterative policy improvement.
 
 If the initial policy is chosen as a Gaussian of the form
 
-\[
+$$
 \pi_0(u;t,x,w)=\mathcal N(u\mid a(x-w), c_1e^{c_2(T-t)}),
-\]
+$$
 
-then the iterated policy-improvement sequence converges to \(\pi^*\), and in the idealized exact setting the paper shows convergence happens after **two iterations**.
+then the iterated policy-improvement sequence converges to $\pi^*$, and in the idealized exact setting the paper shows convergence happens after **two iterations**.
 
 This is mostly a theoretical insight, not a practical literal two-step algorithm, because in practice value functions are approximated.
 
@@ -494,13 +494,13 @@ The **EMV algorithm** has three components:
 
 1. **Policy evaluation**
 2. **Policy improvement**
-3. **Stochastic approximation update for the Lagrange multiplier \(w\)**
+3. **Stochastic approximation update for the Lagrange multiplier $w$**
 
 ### (a) Policy evaluation
 
-Bellman consistency for a fixed policy \(\pi\) implies
+Bellman consistency for a fixed policy $\pi$ implies
 
-\[
+$$
 V^\pi(t,x)
 =
 \mathbb E\left[
@@ -508,19 +508,19 @@ V^\pi(s,X_s)
 +\lambda\int_t^s\int_{\mathbb R}\pi_v(u)\ln\pi_v(u)\,du\,dv
 \mid X_t=x
 \right].
-\]
+$$
 
-Taking \(s\to t\) leads to the continuous-time Bellman / TD error
+Taking $s\to t$ leads to the continuous-time Bellman / TD error
 
-\[
+$$
 \delta_t
 =
 \dot V_t^\pi + \lambda\int_{\mathbb R}\pi_t(u)\ln\pi_t(u)\,du.
-\]
+$$
 
-The empirical policy-evaluation objective over simulated data \(D=\{(t_i,x_i)\}\) is
+The empirical policy-evaluation objective over simulated data $D=\{(t_i,x_i)\}$ is
 
-\[
+$$
 C(\theta,\phi)
 =
 \frac12\sum_{(t_i,x_i)\in D}
@@ -528,7 +528,7 @@ C(\theta,\phi)
 \dot V^\theta(t_i,x_i)
 +\lambda\int_{\mathbb R}\pi_{t_i}^\phi(u)\ln\pi_{t_i}^\phi(u)\,du
 \right)^2 \Delta t.
-\]
+$$
 
 ### (b) Parametrization
 
@@ -537,101 +537,101 @@ The paper does **not** use deep neural networks. It uses explicit parametric for
 #### Policy parametrization
 The Gaussian policy entropy is parameterized as
 
-\[
+$$
 H(\pi_t^\phi)=\phi_1+\phi_2(T-t),
 \qquad \phi=(\phi_1,\phi_2)^\top.
-\]
+$$
 
 #### Value-function parametrization
-\[
+$$
 V^\theta(t,x)
 =
 (x-w)^2 e^{-\theta_3(T-t)} + \theta_2 t^2 + \theta_1 t + \theta_0,
 \qquad \theta=(\theta_0,\theta_1,\theta_2,\theta_3)^\top.
-\]
+$$
 
 Using the Gaussian policy structure, the parameters satisfy
 
-\[
+$$
 \sigma^2=\lambda\pi e^{1-2\phi_1},
 \qquad
 \theta_3=2\phi_2=\rho^2.
-\]
+$$
 
 Then the policy becomes
 
-\[
+$$
 \pi(u;t,x,w)
 =
 \mathcal N\left(
 -\sqrt{\frac{2\phi_2}{\lambda\pi}}\,e^{(2\phi_1-1)/2}(x-w),
 \ \frac{1}{2\pi}e^{2\phi_2(T-t)+2\phi_1-1}
 \right).
-\]
+$$
 
 The objective simplifies to
 
-\[
+$$
 C(\theta,\phi)
 =
 \frac12
 \sum_{(t_i,x_i)\in D}
 \big(\dot V^\theta(t_i,x_i)-\lambda(\phi_1+\phi_2(T-t_i))\big)^2 \Delta t.
-\]
+$$
 
 ### (c) Gradients for SGD
 
 The paper explicitly derives
 
-\[
+$$
 \frac{\partial C}{\partial \theta_1}
 =
 \sum_{(t_i,x_i)\in D}
 \big(\dot V^\theta(t_i,x_i)-\lambda(\phi_1+\phi_2(T-t_i))\big)\Delta t,
-\]
+$$
 
-\[
+$$
 \frac{\partial C}{\partial \theta_2}
 =
 \sum_{(t_i,x_i)\in D}
 \big(\dot V^\theta(t_i,x_i)-\lambda(\phi_1+\phi_2(T-t_i))\big)(t_{i+1}^2-t_i^2),
-\]
+$$
 
-\[
+$$
 \frac{\partial C}{\partial \phi_1}
 =
 -\lambda
 \sum_{(t_i,x_i)\in D}
 \big(\dot V^\theta(t_i,x_i)-\lambda(\phi_1+\phi_2(T-t_i))\big)\Delta t,
-\]
+$$
 
-and a longer expression for \(\partial C/\partial \phi_2\) involving the time derivative of the exponential term in \(V^\theta\). In code, this is just another explicitly computable scalar gradient.
+and a longer expression for $\partial C/\partial \phi_2$ involving the time derivative of the exponential term in $V^\theta$. In code, this is just another explicitly computable scalar gradient.
 
 Then:
 
-- update \(\theta_1,\theta_2\) by SGD,
+- update $\theta_1,\theta_2$ by SGD,
 - set
-  \[
+  $$
   \theta_3=2\phi_2,
-  \]
+  $$
 - enforce terminal condition
-  \[
+  $$
   \theta_0 = -\theta_2T^2-\theta_1T-(w-z)^2.
-  \]
+  $$
 
 ### (d) Lagrange multiplier update
 
 The paper uses stochastic approximation:
 
-\[
+$$
 w_{n+1}=w_n-\alpha_n(X_T-z).
-\]
+$$
 
-In practice it suggests replacing \(X_T\) by a recent sample average:
+In practice it suggests replacing $X_T$ by a recent sample average:
 
-\[
+$$
 w \leftarrow w - \alpha\left(\frac1N\sum_{j} x_T^j - z\right).
-\]
+$$
 
 This is explicitly described as **self-correcting**.
 
@@ -641,14 +641,14 @@ This is explicitly described as **self-correcting**.
 
 At a high level:
 
-1. Initialize \(\theta,\phi,w\).
+1. Initialize $\theta,\phi,w$.
 2. Simulate a trajectory under current Gaussian policy.
-3. Build data \(D=\{(t_i,x_i)\}\).
-4. Update \(\theta\) using gradients of \(C(\theta,\phi)\).
-5. Enforce \(\theta_0,\theta_3\) structural relations.
-6. Update \(\phi\) using gradients of \(C(\theta,\phi)\).
-7. Reconstruct Gaussian policy \(\pi^\phi\).
-8. Every \(N\) episodes, update \(w\) from terminal-wealth error.
+3. Build data $D=\{(t_i,x_i)\}$.
+4. Update $\theta$ using gradients of $C(\theta,\phi)$.
+5. Enforce $\theta_0,\theta_3$ structural relations.
+6. Update $\phi$ using gradients of $C(\theta,\phi)$.
+7. Reconstruct Gaussian policy $\pi^\phi$.
+8. Every $N$ episodes, update $w$ from terminal-wealth error.
 
 ---
 
@@ -660,7 +660,7 @@ At a high level:
   - policy variance = exploration.
 - The PIT reduces general policy improvement to a Gaussian family.
 - The algorithm uses **simple parametric forms**, not neural networks.
-- The method avoids estimating \(\mu,\sigma\) explicitly.
+- The method avoids estimating $\mu,\sigma$ explicitly.
 
 ---
 
@@ -673,11 +673,11 @@ At a high level:
    - batching choices
    are not deeply specified.
 3. **Value-function parameter tying is partly hand-imposed.**
-   - \(\theta_3=2\phi_2\),
-   - \(\theta_0\) from terminal condition.
+   - $\theta_3=2\phi_2$,
+   - $\theta_0$ from terminal condition.
    This is elegant, but it means the parametrization is not fully free.
 4. **The paper assumes positive Sharpe ratio** in the policy rewrite around Eq. (46). The negative-Sharpe case is said to be analogous, but is not detailed.
-5. The practical Bellman-error objective depends on discretization \(\Delta t\), but the discretization error itself is not the focus here.
+5. The practical Bellman-error objective depends on discretization $\Delta t$, but the discretization error itself is not the focus here.
 
 ---
 
@@ -687,23 +687,23 @@ This paper is more ambitious and modern. It uses the continuous-time RL theory f
 
 ## 3.1 General market setting
 
-There are \(d+1\) assets:
+There are $d+1$ assets:
 
-- one risk-free asset \(S^0(t)\),
-- \(d\) risky assets \(S^1(t),\dots,S^d(t)\),
-- and \(m\) observable factors \(F(t)\in\mathbb R^m\).
+- one risk-free asset $S^0(t)$,
+- $d$ risky assets $S^1(t),\dots,S^d(t)$,
+- and $m$ observable factors $F(t)\in\mathbb R^m$.
 
-The discounted wealth process under portfolio \(u(t)\in\mathbb R^d\) is
+The discounted wealth process under portfolio $u(t)\in\mathbb R^d$ is
 
-\[
+$$
 dx^u(t)
 =
 \sum_{i=1}^d u_i(t)\frac{dS_i(t)}{S_i(t)}
 -
 e_d^\top u(t)\frac{dS_0(t)}{S_0(t)}.
-\]
+$$
 
-The key structural assumption is only that \((S(t),F(t))\) are **Itô diffusions**. Their coefficients are unknown and are **not estimated**.
+The key structural assumption is only that $(S(t),F(t))$ are **Itô diffusions**. Their coefficients are unknown and are **not estimated**.
 
 ---
 
@@ -711,19 +711,19 @@ The key structural assumption is only that \((S(t),F(t))\) are **Itô diffusions
 
 A stochastic policy maps state to a distribution:
 
-\[
+$$
 \pi:\ (t,x,F)\mapsto \pi(\cdot\mid t,x,F)\in \mathcal P(\mathbb R^d).
-\]
+$$
 
-At time \(t\),
+At time $t$,
 
-\[
+$$
 u^\pi(t)\sim \pi(\cdot\mid t, x^{u^\pi}(t), F(t)).
-\]
+$$
 
 The entropy-regularized objective is
 
-\[
+$$
 \mathbb E\left[
 (x^{u^\pi}(T)-w)^2
 +
@@ -731,7 +731,7 @@ The entropy-regularized objective is
 \log \pi(u^\pi(t)\mid t,x^{u^\pi}(t),F(t))\,dt
 \right]
 -(w-z)^2.
-\]
+$$
 
 Compared with the 2019 paper:
 - same broad idea of entropy-regularized exploratory control,
@@ -741,9 +741,9 @@ Compared with the 2019 paper:
 
 ## 3.3 Policy evaluation via martingale conditions
 
-For a given policy \(\pi\), define the value function
+For a given policy $\pi$, define the value function
 
-\[
+$$
 J(t,x,F;\pi;w)
 =
 \mathbb E\left[
@@ -755,21 +755,21 @@ J(t,x,F;\pi;w)
 x^{u^\pi}(t)=x,\ F(t)=F
 \right]
 -(w-z)^2.
-\]
+$$
 
 The key theoretical statement is:
 
-\[
+$$
 J(t,x_t,F_t;\pi;w)
 +
 \gamma\int_0^t \log \pi(u^\pi(s)\mid s,x_s,F_s)\,ds
-\]
+$$
 
 is a martingale.
 
-Using test functions \(I(t)\), the paper imposes the moment condition
+Using test functions $I(t)$, the paper imposes the moment condition
 
-\[
+$$
 \mathbb E\left[
 \int_0^T
 I(t)
@@ -780,7 +780,7 @@ dJ(t,x_t,F_t;w;\theta)
 \right)
 \right]
 =0.
-\]
+$$
 
 This is the policy-evaluation equation.
 
@@ -793,7 +793,7 @@ The paper explicitly rejects the old MSTDE-style continuous-time PE objective us
 
 The policy-gradient identity is written as
 
-\[
+$$
 \frac{\partial}{\partial \phi}J(0,x_0,F_0;\pi_\phi;w)
 =
 \mathbb E\left[
@@ -807,9 +807,9 @@ dJ(t,x_t,F_t;w;\theta)
 +\gamma \log \pi(\cdot)\,dt
 \right)
 \right].
-\]
+$$
 
-This yields a model-free actor update once the critic \(J(\cdot;\theta)\) is approximated.
+This yields a model-free actor update once the critic $J(\cdot;\theta)$ is approximated.
 
 ---
 
@@ -817,14 +817,14 @@ This yields a model-free actor update once the critic \(J(\cdot;\theta)\) is app
 
 The coupled system is:
 
-\[
+$$
 \mathbb E\left[
 \int_0^T
 I(t)\{dJ+\gamma\log\pi\,dt\}
 \right]=0,
-\]
+$$
 
-\[
+$$
 \mathbb E\left[
 \int_0^T
 \left(
@@ -832,11 +832,11 @@ I(t)\{dJ+\gamma\log\pi\,dt\}
 \right)
 \{dJ+\gamma\log\pi\,dt\}
 \right]=0,
-\]
+$$
 
-\[
+$$
 \mathbb E[x^{u^{\pi_\phi}}(T)-z]=0.
-\]
+$$
 
 This is the conceptual backbone of the whole algorithm.
 
@@ -847,29 +847,29 @@ This is the conceptual backbone of the whole algorithm.
 For the frictionless multi-stock Black–Scholes case without factors, the paper chooses structured critic/actor classes.
 
 ### Critic
-\[
+$$
 J(t,x;w;\theta)
 =
 (x-w)^2 e^{-\theta_3(T-t)}
 +\theta_2(t^2-T^2)
 +\theta_1(t-T)
 -(w-z)^2.
-\]
+$$
 
 ### Stochastic actor
-\[
+$$
 \pi(\cdot\mid t,x;w;\phi)
 =
 \mathcal N\big(
 -\phi_1(x-w),\ \phi_2 e^{\phi_3(T-t)}
 \big),
-\]
+$$
 
 where:
-- \(\phi_1\in\mathbb R^d\),
-- \(\phi_2\in S_{++}^d\),
-- \(\phi_3\) is treated as fixed,
-- they often set \(\phi_3=\theta_3\).
+- $\phi_1\in\mathbb R^d$,
+- $\phi_2\in S_{++}^d$,
+- $\phi_3$ is treated as fixed,
+- they often set $\phi_3=\theta_3$.
 
 This is a multivariate Gaussian analogue of the 2019 exploratory policy.
 
@@ -877,11 +877,11 @@ This is a multivariate Gaussian analogue of the 2019 exploratory policy.
 
 ## 3.7 Reparameterization trick for covariance update
 
-A nontrivial technical move is to optimize with respect to \(\phi_2^{-1}\), not \(\phi_2\). The policy-gradient equation is rewritten in terms of
+A nontrivial technical move is to optimize with respect to $\phi_2^{-1}$, not $\phi_2$. The policy-gradient equation is rewritten in terms of
 
-\[
+$$
 \frac{\partial}{\partial \phi_2^{-1}}\log \pi(\cdot).
-\]
+$$
 
 This is explicitly said to be instrumental for the convergence proof.
 
@@ -891,10 +891,10 @@ This is explicitly said to be instrumental for the convergence proof.
 
 The paper then defines a stochastic-approximation algorithm.
 
-At iteration \(n\), generate a trajectory under current policy \(\pi(\cdot\mid t,x;w_n;\phi_n)\), and update:
+At iteration $n$, generate a trajectory under current policy $\pi(\cdot\mid t,x;w_n;\phi_n)$, and update:
 
 ### Critic update
-\[
+$$
 \theta_{n+1}
 \leftarrow
 \Pi_{K_{\theta,n}}
@@ -906,33 +906,33 @@ a_n
 \frac{\partial J}{\partial \theta}(t,x_n(t);w_n;\theta_n)
 \big[dJ+\gamma \log \pi\,dt\big]
 \right).
-\]
+$$
 
 ### Actor mean update
-\[
+$$
 \phi_{1,n+1}
 \leftarrow
 \Pi_{K_{1,n}}
 \big(\phi_{1,n}-a_n Z_{1,n}(T)\big).
-\]
+$$
 
 ### Actor covariance update
-\[
+$$
 \phi_{2,n+1}
 \leftarrow
 \Pi_{K_{2,n}}
 \big(\phi_{2,n}+a_n Z_{2,n}(T)\big).
-\]
+$$
 
 ### Lagrange multiplier update
-\[
+$$
 w_{n+1}
 \leftarrow
 \Pi_{K_{w,n}}
 \big(w_n-a_{w,n}(x_n(T)-z)\big).
-\]
+$$
 
-Here \(Z_{1,n}(T)\) and \(Z_{2,n}(T)\) are the actor-gradient integrals defined from the policy-gradient equations.
+Here $Z_{1,n}(T)$ and $Z_{2,n}(T)$ are the actor-gradient integrals defined from the policy-gradient equations.
 
 The projection sets expand over time, so the algorithm remains model-free while controlling instability.
 
@@ -940,17 +940,17 @@ The projection sets expand over time, so the algorithm remains model-free while 
 
 ## 3.9 Theorem 1: exploration–exploitation tradeoff in update noise
 
-One of the nicest insights in the paper is the analysis of the update direction \(Z_{1,n}(T)\).
+One of the nicest insights in the paper is the analysis of the update direction $Z_{1,n}(T)$.
 
 Its conditional mean is
 
-\[
+$$
 \mathbb E[Z_{1,n}(T)\mid \theta_n,\phi_n,w_n]
 =
 - R(\phi_{1,n},\phi_{2,n},w_n)\,(\mu-r-\Sigma \phi_{1,n}),
-\]
+$$
 
-and its conditional variance is bounded by a U-shaped expression in the exploration covariance \(\phi_{2,n}\).
+and its conditional variance is bounded by a U-shaped expression in the exploration covariance $\phi_{2,n}$.
 
 ### Interpretation
 - Too little exploration: policy becomes nearly deterministic, weak policy-improvement signal.
@@ -965,15 +965,15 @@ This is one of the main implementation-level messages of the paper.
 
 Under Black–Scholes assumptions and step-size/projection conditions, the paper proves:
 
-\[
+$$
 \phi_{1,n}\to \phi_1^*=(\sigma\sigma^\top)^{-1}(\mu-r),
-\]
+$$
 
-\[
+$$
 \phi_{2,n}\to \phi_2^*=\frac{\gamma}{2}(\sigma\sigma^\top)^{-1},
-\]
+$$
 
-\[
+$$
 w_n\to w^*
 =
 \frac{
@@ -981,17 +981,17 @@ z e^{(\mu-r)^\top(\sigma\sigma^\top)^{-1}(\mu-r)T}-x_0
 }{
 e^{(\mu-r)^\top(\sigma\sigma^\top)^{-1}(\mu-r)T}-1
 }.
-\]
+$$
 
 It also proves the rate
 
-\[
+$$
 \mathbb E\|\phi_{1,n+1}-\phi_1^*\|^2
 \le
 C\frac{(\log n)^p\sqrt{\log\log n}}{n}
-\]
+$$
 
-(up to the exact formatting used in the paper). The point is that the rate is nearly \(1/n\), up to logarithmic factors.
+(up to the exact formatting used in the paper). The point is that the rate is nearly $1/n$, up to logarithmic factors.
 
 ---
 
@@ -1003,18 +1003,18 @@ If two stochastic Gaussian policies have the same mean but different covariance,
 
 So the paper defines the greedy deterministic policy
 
-\[
+$$
 u(t,x;w;\phi) = -\phi_1(x-w),
-\]
+$$
 
 and evaluates performance by the Sharpe ratio
 
-\[
+$$
 SR(\phi_1)
 =
 \frac{\mathbb E[x^u(T)/x^u(0)]-1}
 {\sqrt{\mathrm{Var}(x^u(T)/x^u(0))}}.
-\]
+$$
 
 This is specific to the **small-investor frictionless setting**, where counterfactual portfolio consequences are effectively observable “on paper.”
 
@@ -1024,13 +1024,13 @@ This is specific to the **small-investor frictionless setting**, where counterfa
 
 The paper proves a cumulative regret bound in Sharpe ratio:
 
-\[
+$$
 \mathbb E\left[\sum_{n=1}^N (SR(\phi_1^*)-SR(\phi_{1,n}))\right]
 \le
 C + C\sqrt{N(\log N)^p \log\log N}.
-\]
+$$
 
-So regret is sublinear in \(N\), meaning average regret vanishes.
+So regret is sublinear in $N$, meaning average regret vanishes.
 
 This is one of the headline contributions.
 
@@ -1048,18 +1048,18 @@ The practical version goes beyond the baseline theorem-backed algorithm.
 3. **Mini-batching**
    - lower variance of gradient estimates.
 4. **History-dependent test functions**
-   - TD(\(\lambda\))-style weighted traces:
-   \[
+   - TD($\lambda$)-style weighted traces:
+   $$
    I(t)=\int_0^t \lambda^{t-s}\frac{\partial J}{\partial \theta}(s,x(s);w;\theta)\,ds,
-   \]
-   \[
+   $$
+   $$
    H(t)=\int_0^t \lambda^{t-s}\frac{\partial}{\partial \phi}\log\pi(u(s)\mid s,x(s);w;\phi)\,ds.
-   \]
+   $$
 5. **Risk-free asset exclusion for experiments**
    - project the unconstrained portfolio onto risky assets only:
-   \[
+   $$
    \hat u(t)=\frac{u(t)}{\sum_{i=1}^d u_i(t)}x(t).
-   \]
+   $$
 6. **Rebalancing frequency**
    - e.g. monthly execution with more frequent parameter updates.
 7. **Off-policy learning**
@@ -1069,7 +1069,7 @@ The practical version goes beyond the baseline theorem-backed algorithm.
 ### Online one-step gradient increments
 The modified online algorithm defines one-step quantities
 
-\[
+$$
 G_{\theta,k}
 =
 \frac{\partial J}{\partial \theta}(t_k,x(t_k);w;\theta_k)
@@ -1077,9 +1077,9 @@ G_{\theta,k}
 J(t_{k+1},x(t_{k+1});w;\theta_k)-J(t_k,x(t_k);w;\theta_k)
 +\gamma \hat p(t_k,\phi_k)\Delta t
 \right],
-\]
+$$
 
-and analogous expressions \(G_{\phi_1,k}\), \(G_{\phi_2^{-1},k}\), then averages over mini-batches and updates online.
+and analogous expressions $G_{\phi_1,k}$, $G_{\phi_2^{-1},k}$, then averages over mini-batches and updates online.
 
 The paper gives explicit pseudocode for this modified algorithm in the E-companion.
 
@@ -1108,9 +1108,9 @@ The paper gives explicit pseudocode for this modified algorithm in the E-compani
    It should not be transplanted blindly to large-investor or impact settings.
 4. **Discretization is deferred to the final stage**
    - analytically elegant,
-   - but real code still depends on \(\Delta t\), trace decay choices, rebalancing schedule, and projection implementation.
+   - but real code still depends on $\Delta t$, trace decay choices, rebalancing schedule, and projection implementation.
 5. **Sign conventions require care**
-   - especially around \(\phi_1\), covariance inverse updates, and the relation between actor mean and greedy deterministic execution.
+   - especially around $\phi_1$, covariance inverse updates, and the relation between actor mean and greedy deterministic execution.
 6. The convergence theorem is for a **Black–Scholes, no-factor benchmark**. General factor-driven diffusion settings are algorithmically covered, but not with the same full regret guarantee.
 
 ---
@@ -1172,7 +1172,7 @@ This is the strongest paper algorithmically, but also the most demanding to impl
 ## 5.3 Huang–Jia–Zhou (2025)
 - Several critical implementation formulas are in the E-companion.
 - The baseline algorithm is the theorem-backed one; the modified online algorithm is more practical but theoretically less fully pinned down.
-- The covariance update through \(\phi_2^{-1}\) is easy to mishandle numerically.
+- The covariance update through $\phi_2^{-1}$ is easy to mishandle numerically.
 - Projection operators onto expanding bounded sets are essential to the proof and may matter in stable implementation.
 - There is a subtle but important distinction between:
   - stochastic behavior policy for learning,
@@ -1187,22 +1187,27 @@ If the goal is a modular research repo, the cleanest architecture is:
 ### Layer A — analytic oracle
 Implement the **Zhou–Li (2000)** solution first as a benchmark.
 
-### Layer B — exploratory Gaussian RL
-Implement the **Wang–Zhou (2019/2020)** EMV algorithm next:
-- single risky asset first,
-- explicit Gaussian actor,
-- explicit value parametrization,
-- stochastic approximation for \(w\).
+### Layer B — theorem-aligned CTRL baseline
+Implement the **Huang–Jia–Zhou (2025)** baseline CTRL next:
+- Black–Scholes synthetic benchmark first,
+- stochastic actor / deterministic execution split,
+- martingale critic moment conditions,
+- covariance-inverse-safe update path,
+- outer-loop $w$ update.
 
-### Layer C — martingale actor–critic
-Then implement the **Huang–Jia–Zhou (2025)** baseline CTRL:
-- Black–Scholes benchmark first,
-- stochastic actor / deterministic executor split,
-- critic moment conditions,
-- covariance inverse update.
+Use **Wang–Zhou (2019/2020)** as a derivational reference for the exploratory Gaussian structure and the role of the outer-loop $w$ update, but do **not** make EMV a required implementation layer in the repo roadmap.
 
-### Layer D — practical online version
-Add the modified online CTRL only after the baseline version is stable.
+### Layer C — practical constrained / online CTRL
+Add the **Huang–Jia–Zhou (2022)** and **2025 E-companion** practical improvements only after the baseline version is stable:
+- leverage control,
+- risky-only projection when benchmark matching requires it,
+- separate rebalance and learning schedules,
+- TD($\lambda$)-style traces,
+- mini-batching,
+- modified online updates.
+
+### Layer D — jump-diffusion portability
+Only after the above layers are stable, reuse the framework for jump-diffusion settings.
 
 ---
 

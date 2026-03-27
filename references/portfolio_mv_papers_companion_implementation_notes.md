@@ -23,7 +23,7 @@ The goal is to help turn the mathematics into code.
 A useful mental map is:
 
 - **Wang–Zhou (2020)** gives the first compact exploratory MV algorithm (**EMV**) in a single-risky-asset setting.
-- **Huang–Jia–Zhou (2022)** explains how to turn continuous-time actor–critic ideas into a **practical constrained portfolio algorithm**, with leverage control, rebalancing, and TD(\(\lambda\))-style traces.
+- **Huang–Jia–Zhou (2022)** explains how to turn continuous-time actor–critic ideas into a **practical constrained portfolio algorithm**, with leverage control, rebalancing, and TD($\lambda$)-style traces.
 - **Huang–Jia–Zhou (2025)** gives the more systematic **CTRL** framework, with theorem-backed baseline updates and a more practical **modified online algorithm** in the E-companion.
 - **Gao–Li–Zhou (2025)** shows that for **jump-diffusions**, the same temporal-difference/q-learning algorithms can still be used, although parametrization may depend on jumps in non-LQ settings.
 - **Dai et al.** is not an MV paper, but it contains very useful implementation lessons on **Gaussian randomization**, **bias–variance tradeoff in the exploration level**, and **wealth-normalized test functions**.
@@ -46,20 +46,20 @@ If you are building a repo, the natural order is:
 
 The EMV paper is simple in structure, but one implementation detail is easy to miss:
 
-- it does **not** require explicit estimation of \(\mu\) or \(\sigma\),
+- it does **not** require explicit estimation of $\mu$ or $\sigma$,
 - it assumes you can simulate or observe a trajectory under the **current Gaussian exploratory policy**,
 - then it fits the critic/policy parameters by minimizing the discretized Bellman/TD-style objective.
 
 The sample dataset is
 
-\[
+$$
 D=\{(t_i,x_i)\}_{i=0}^{\ell+1},
-\]
+$$
 
 constructed by:
-1. starting from \((0,x_0)\),
-2. at each \(t_i\), sampling \(u_i \sim \pi^\phi_{t_i}\),
-3. observing the next wealth \(x_{i+1}\),
+1. starting from $(0,x_0)$,
+2. at each $t_i$, sampling $u_i \sim \pi^\phi_{t_i}$,
+3. observing the next wealth $x_{i+1}$,
 4. assembling the trajectory.  
 
 So the algorithm is fundamentally **trajectory-based**, not a closed-form parameter update.
@@ -68,40 +68,40 @@ So the algorithm is fundamentally **trajectory-based**, not a closed-form parame
 
 The value parametrization is
 
-\[
+$$
 V^\theta(t,x)= (x-w)^2 e^{-\theta_3(T-t)}+\theta_2 t^2+\theta_1 t+\theta_0.
-\]
+$$
 
 The entropy of the Gaussian policy is parameterized as
 
-\[
+$$
 H(\pi_t^\phi)=\phi_1+\phi_2(T-t).
-\]
+$$
 
 Then the paper imposes the structural relations
 
-\[
+$$
 \sigma^2=\lambda \pi e^{1-2\phi_1},
 \qquad
 \theta_3 = 2\phi_2 = \rho^2,
-\]
+$$
 
 and the improved Gaussian policy becomes
 
-\[
+$$
 \pi(u;t,x,w)
 =
 \mathcal N\!\left(
 -\sqrt{\frac{2\phi_2}{\lambda\pi}}\,e^{(2\phi_1-1)/2}(x-w),
 \ \frac{1}{2\pi}e^{2\phi_2(T-t)+2\phi_1-1}
 \right).
-\]
+$$
 
-This means that in code, **\(\theta_3\) should not be treated as an independently free parameter** once you adopt this reduced parametrization. Likewise, \(\theta_0\) is reset from the terminal condition:
+This means that in code, **$\theta_3$ should not be treated as an independently free parameter** once you adopt this reduced parametrization. Likewise, $\theta_0$ is reset from the terminal condition:
 
-\[
+$$
 \theta_0 = -\theta_2T^2-\theta_1T-(w-z)^2.
-\]
+$$
 
 So the critic update is only partly a gradient step; part of it is a **constraint enforcement / projection back to the theoretical manifold**.
 
@@ -109,41 +109,41 @@ So the critic update is only partly a gradient step; part of it is a **constrain
 
 A faithful implementation should use roughly this order inside each iteration:
 
-1. sample or collect a trajectory under current \(\pi^\phi\),
-2. compute \(C(\theta,\phi)\),
-3. update \(\theta_1,\theta_2\),
-4. reset \(\theta_3 \leftarrow 2\phi_2\),
-5. reset \(\theta_0\) from terminal condition,
-6. update \(\phi_1,\phi_2\),
+1. sample or collect a trajectory under current $\pi^\phi$,
+2. compute $C(\theta,\phi)$,
+3. update $\theta_1,\theta_2$,
+4. reset $\theta_3 \leftarrow 2\phi_2$,
+5. reset $\theta_0$ from terminal condition,
+6. update $\phi_1,\phi_2$,
 7. reconstruct the Gaussian policy,
-8. every \(N\) iterations, update \(w\).
+8. every $N$ iterations, update $w$.
 
-This is not just cosmetic. If you update \(\theta\) and \(\phi\) “simultaneously” without reimposing the structural equations, your implementation drifts away from the intended actor/critic family.
+This is not just cosmetic. If you update $\theta$ and $\phi$ “simultaneously” without reimposing the structural equations, your implementation drifts away from the intended actor/critic family.
 
-### 2.4 The \(w\)-update is an outer loop
+### 2.4 The $w$-update is an outer loop
 
 The Lagrange multiplier update is
 
-\[
+$$
 w_{n+1}=w_n-\alpha_n(X_T-z),
-\]
+$$
 
 or in stabilized form,
 
-\[
+$$
 w \leftarrow w-\alpha\left(\frac1N\sum_{j=1}^N x_T^j-z\right).
-\]
+$$
 
-This should be implemented as a **slow outer update**, not mixed inside every timestep of a trajectory. The paper’s logic is that \(w\) is a constraint-enforcing primal-dual variable, not just another network parameter.
+This should be implemented as a **slow outer update**, not mixed inside every timestep of a trajectory. The paper’s logic is that $w$ is a constraint-enforcing primal-dual variable, not just another network parameter.
 
 ### 2.5 Practical ambiguities in EMV
 
 These are not fully specified in the paper:
 
 - batch size / whether one trajectory or multiple trajectories should be used per update,
-- whether \(w\) should be updated every episode or every \(N\) episodes,
+- whether $w$ should be updated every episode or every $N$ episodes,
 - gradient clipping or stabilization,
-- how small \(\Delta t\) must be before performance plateaus,
+- how small $\Delta t$ must be before performance plateaus,
 - what to do in multi-asset settings.
 
 So for a repo, you need to choose these explicitly.
@@ -158,28 +158,28 @@ The 2022 ICAIF paper is important because it translates continuous-time theory i
 
 The value function is parameterized as
 
-\[
+$$
 J_\theta(t,x;w)
 =
 (x-w)^2 e^{-\theta_3(T-t)}
 +\theta_2(t^2-T^2)+\theta_1(t-T)-(w-z)^2.
-\]
+$$
 
 The stochastic policy is parameterized as
 
-\[
+$$
 \pi_\phi(\cdot\mid t,x;w)
 =
 \mathcal N\!\left(\cdot\mid -\phi_1(x-w),\ \phi_2 e^{\phi_3(T-t)}\right).
-\]
+$$
 
 The entropy term is
 
-\[
+$$
 \hat p(t,\phi)
 =
 -\frac12 \log\!\big((2\pi e)^d \det(\phi_2 e^{\phi_3(T-t)})\big).
-\]
+$$
 
 This is the same broad Gaussian/quadratic structure that later appears in the 2025 CTRL paper.
 
@@ -198,43 +198,43 @@ That is a very useful design principle for your repo.
 
 ### 3.3 Leverage constraint formula
 
-Given a portfolio vector \(a_t\), leverage cap \(\ell\), and current wealth \(x_t\), the leverage-constrained portfolio is
+Given a portfolio vector $a_t$, leverage cap $\ell$, and current wealth $x_t$, the leverage-constrained portfolio is
 
-\[
+$$
 a_t' =
 \frac{a_t}{\sum_{i=1}^d a_t^i}\,x_t\,\ell \cdot 1_{\{\sum_i a_t^i > x_t\ell\}}
 +
 a_t \cdot 1_{\{\sum_i a_t^i \le x_t\ell\}}.
-\]
+$$
 
 So if total risky allocation exceeds allowable leverage, the portfolio is rescaled back to the leverage boundary.
 
 In code:
 - compute total risky exposure,
-- if it exceeds \(x_t \ell\), scale the vector proportionally,
+- if it exceeds $x_t \ell$, scale the vector proportionally,
 - otherwise leave it unchanged.
 
 ### 3.4 Risk-free asset exclusion trick
 
 For empirical comparison, the paper excludes the risk-free asset and projects the unconstrained portfolio onto purely risky allocations:
 
-\[
+$$
 \hat u(t) := \frac{u(t)}{\sum_{i=1}^d u_i(t)}x(t).
-\]
+$$
 
 This is **not** part of the underlying theoretical control problem; it is a practical benchmarking choice. If you use it, document clearly that you are changing the feasible action space.
 
-### 3.5 TD(\(\lambda\)) / eligibility traces
+### 3.5 TD($\lambda$) / eligibility traces
 
 The paper recommends history-dependent test functions:
 
-\[
+$$
 I(t)=\int_0^t \lambda^{\,t-s}\frac{\partial J}{\partial \theta}(s,x(s);w;\theta)\,ds,
 \qquad
 H(t)=\int_0^t \lambda^{\,t-s}\frac{\partial}{\partial\phi}\log\pi(u(s)\mid s,x(s);w;\phi)\,ds.
-\]
+$$
 
-This is a continuous-time analogue of TD(\(\lambda\)).
+This is a continuous-time analogue of TD($\lambda$).
 
 Implementation consequence:
 - maintain running traces for critic and actor,
@@ -260,43 +260,43 @@ This is where many important implementation details live.
 ## 4.1 Baseline theorem-backed algorithm
 
 The paper uses:
-- critic parameter \(\theta\),
-- actor mean parameter \(\phi_1\),
-- actor covariance parameter \(\phi_2\),
-- Lagrange multiplier \(w\).
+- critic parameter $\theta$,
+- actor mean parameter $\phi_1$,
+- actor covariance parameter $\phi_2$,
+- Lagrange multiplier $w$.
 
 The Gaussian behavior policy is
 
-\[
+$$
 \pi(\cdot\mid t,x;w;\phi)
 =
 \mathcal N\big(-\phi_1(x-w),\ \phi_2 e^{\phi_3(T-t)}\big).
-\]
+$$
 
 The baseline updates are
 
-\[
+$$
 \theta_{n+1} \leftarrow \Pi_{K_{\theta,n}}(\theta_n + a_n \cdot \text{critic increment}),
-\]
+$$
 
-\[
+$$
 \phi_{1,n+1} \leftarrow \Pi_{K_{1,n}}(\phi_{1,n} - a_n Z_{1,n}(T)),
-\]
+$$
 
-\[
+$$
 \phi_{2,n+1} \leftarrow \Pi_{K_{2,n}}(\phi_{2,n} + a_n Z_{2,n}(T)),
-\]
+$$
 
-\[
+$$
 w_{n+1} \leftarrow \Pi_{K_{w,n}}(w_n-a_{w,n}(x_n(T)-z)).
-\]
+$$
 
 ### Why this matters
 The **projection sets** are not decorative. They are used to keep iterates bounded while the admissible bounds expand over time. If your implementation ignores them entirely, you are no longer implementing the theorem-backed algorithm.
 
 ## 4.2 Inverse covariance update trick
 
-The paper updates in \(\phi_2^{-1}\), not directly in \(\phi_2\).
+The paper updates in $\phi_2^{-1}$, not directly in $\phi_2$.
 
 This is a major implementation detail.
 
@@ -305,7 +305,7 @@ Reason:
 - it is important in the convergence proof,
 - it is usually numerically more stable than unconstrained direct covariance updates.
 
-So if \(\phi_2\) is a covariance matrix, your code should consider storing:
+So if $\phi_2$ is a covariance matrix, your code should consider storing:
 - either a precision matrix,
 - or a Cholesky-type parameterization,
 - and reconstruct covariance only when needed.
@@ -314,10 +314,10 @@ Direct free updates of a covariance matrix are risky.
 
 ## 4.3 U-shaped exploration–variance phenomenon
 
-A central insight of the 2025 paper is that the variance of the update direction for \(\phi_1\) is U-shaped in the exploration level governed by \(\phi_2\):
+A central insight of the 2025 paper is that the variance of the update direction for $\phi_1$ is U-shaped in the exploration level governed by $\phi_2$:
 
-- too little exploration \(\Rightarrow\) near-deterministic policy, weak policy-improvement signal,
-- too much exploration \(\Rightarrow\) overly noisy updates.
+- too little exploration $\Rightarrow$ near-deterministic policy, weak policy-improvement signal,
+- too much exploration $\Rightarrow$ overly noisy updates.
 
 This is not just philosophical. It should influence hyperparameter tuning:
 - exploration variance should be tuned like a genuine optimization knob,
@@ -341,51 +341,51 @@ Do not blur the two in code or backtests.
 
 The E-companion gives one-step gradient increments:
 
-\[
+$$
 G_{\theta,k}
 =
 \frac{\partial J}{\partial \theta}(t_k,x(t_k);w;\theta_k)
 \left[J(t_{k+1},x(t_{k+1});w;\theta_k)-J(t_k,x(t_k);w;\theta_k)+\gamma \hat p(t_k,\phi_k)\Delta t\right],
-\]
+$$
 
-\[
+$$
 G_{\phi_1,k}
 =
 \frac{\partial \log \pi}{\partial \phi_1}(u(t_k)\mid t_k,x(t_k);w;\phi_k)
 \left[J(t_{k+1},x(t_{k+1});w;\theta_k)-J(t_k,x(t_k);w;\theta_k)+\gamma \hat p(t_k,\phi_k)\Delta t\right]
 +\gamma \frac{\partial \hat p}{\partial \phi_1}(t_k,\phi_k)\Delta t,
-\]
+$$
 
-\[
+$$
 G_{\phi_2^{-1},k}
 =
 \frac{\partial \log \pi}{\partial \phi_2^{-1}}(u(t_k)\mid t_k,x(t_k);w;\phi_k)
 \left[J(t_{k+1},x(t_{k+1});w;\theta_k)-J(t_k,x(t_k);w;\theta_k)+\gamma \hat p(t_k,\phi_k)\Delta t\right]
 +\gamma \frac{\partial \hat p}{\partial \phi_2^{-1}}(t_k,\phi_k)\Delta t.
-\]
+$$
 
 Then with historical weighting:
 
-\[
+$$
 \theta_{k+1}
 \leftarrow
 \Pi_{K_{\theta,n}}
 \left(\theta_k + a_n(w_{\text{prev}} G_{\theta,k-1}+w_{\text{curr}} G_{\theta,k})\right),
-\]
+$$
 
-\[
+$$
 \phi_{1,k+1}
 \leftarrow
 \Pi_{K_{1,n}}
 \left(\phi_{1,k} - a_n(w_{\text{prev}} G_{\phi_1,k-1}+w_{\text{curr}} G_{\phi_1,k})\right),
-\]
+$$
 
-\[
+$$
 \phi_{2,k+1}
 \leftarrow
 \Pi_{K_{2,n}}
 \left(\phi_{2,k} + a_n(w_{\text{prev}} G_{\phi_2^{-1},k-1}+w_{\text{curr}} G_{\phi_2^{-1},k})\right).
-\]
+$$
 
 This is effectively a **short-memory trace / weighted two-step update**.
 
@@ -396,18 +396,18 @@ You need to cache previous gradient increments. The modified online algorithm is
 
 A faithful implementation of the modified online algorithm is:
 
-1. initialize \(\theta,\phi,w\) from offline pretraining,
+1. initialize $\theta,\phi,w$ from offline pretraining,
 2. for each iteration / episode:
-   - set current wealth \(x=x_0\),
-   - at each time \(k\):
-     - if \(k \bmod f = 0\), compute deterministic greedy target action and rebalance,
+   - set current wealth $x=x_0$,
+   - at each time $k$:
+     - if $k \bmod f = 0$, compute deterministic greedy target action and rebalance,
      - otherwise hold current assets,
-     - generate \(n\) random behavior-policy actions,
+     - generate $n$ random behavior-policy actions,
      - simulate next wealths for those behavior actions,
-     - compute \(G_{\theta,k}^j, G_{\phi_1,k}^j, G_{\phi_2^{-1},k}^j\),
+     - compute $G_{\theta,k}^j, G_{\phi_1,k}^j, G_{\phi_2^{-1},k}^j$,
      - average over mini-batch,
-     - update \(\theta,\phi\) using (39)/(40),
-   - every \(M\) iterations, update \(w\) using average terminal wealth.
+     - update $\theta,\phi$ using (39)/(40),
+   - every $M$ iterations, update $w$ using average terminal wealth.
 
 So the paper effectively combines:
 - online updates,
@@ -418,28 +418,28 @@ So the paper effectively combines:
 ## 4.7 Practical hyperparameters reported
 
 The implementation section reports one concrete practical setup:
-- \(w\)-learning rate: \(0.05\),
-- \(\theta,\phi\)-learning rates: \(0.005\),
-- normalized initial wealth: \(1\),
-- target: \(1.15\),
-- horizon \(T=1\),
-- \(\Delta t = 1/252\),
-- entropy temperature \(\gamma=0.1\),
+- $w$-learning rate: $0.05$,
+- $\theta,\phi$-learning rates: $0.005$,
+- normalized initial wealth: $1$,
+- target: $1.15$,
+- horizon $T=1$,
+- $\Delta t = 1/252$,
+- entropy temperature $\gamma=0.1$,
 - 20,000 training iterations,
-- update \(w\) every 10 iterations,
-- batch size \(16\),
-- initial values \(\theta_1=\theta_2=\theta_3=\phi_3=w=1\),
-- \(\phi_2 = I_d\),
-- \(\phi_1\) initialized as an all-ones vector.
+- update $w$ every 10 iterations,
+- batch size $16$,
+- initial values $\theta_1=\theta_2=\theta_3=\phi_3=w=1$,
+- $\phi_2 = I_d$,
+- $\phi_1$ initialized as an all-ones vector.
 
 These should not be treated as universal defaults, but they are useful sanity-check values.
 
-## 4.8 Important ambiguity: notation collision for \(\lambda\)
+## 4.8 Important ambiguity: notation collision for $\lambda$
 
-In these papers, \(\lambda\) is overloaded:
+In these papers, $\lambda$ is overloaded:
 
 - in some contexts it is the **exploration/entropy-related parameter**,
-- in TD(\(\lambda\)) contexts it is the **trace-decay parameter**,
+- in TD($\lambda$) contexts it is the **trace-decay parameter**,
 - in jump models it may also denote **jump intensity**.
 
 In a codebase, do **not** call all of them `lambda`.
@@ -495,11 +495,11 @@ Although it solves a utility problem, this paper contains implementation ideas t
 
 The admissible policy class is
 
-\[
+$$
 \pi^{(\lambda)}(\cdot\mid t,w,x)
 =
 \mathcal N\!\left(u(t,w,x),\ \frac{\lambda}{\gamma \sigma(t,x)^2}\right).
-\]
+$$
 
 The mean of the optimal Gaussian randomized policy solves the original deterministic Merton problem.
 
@@ -511,19 +511,19 @@ This is conceptually important:
 
 The cost of randomization is quantified explicitly:
 
-\[
+$$
 \mathrm{ERWL}(\pi^{(\lambda)\,*}) = 1-e^{-\lambda T/2} \approx \lambda T/2.
-\]
+$$
 
 This is a very useful calibration heuristic:
-- larger \(\lambda\) helps learning signal variance,
+- larger $\lambda$ helps learning signal variance,
 - but it directly imposes a utility cost.
 
 ## 6.3 Wealth-normalized test functions
 
 The paper proposes
 
-\[
+$$
 \xi_t =
 \frac{\partial_\psi \hat\phi_\psi(t,X_t)}
 {(1-\gamma)\hat V^\psi(t,W_t,X_t)+1},
@@ -531,7 +531,7 @@ The paper proposes
 \eta_t =
 \frac{\partial_\theta \hat u_\theta(t,X_t)}
 {(1-\gamma)\hat V^\psi(t,W_t,X_t)+1}.
-\]
+$$
 
 Interpretation:
 - this replaces raw TD errors by a **relative** TD error,
@@ -544,12 +544,12 @@ This is a strong idea if you later move beyond mean-variance into utility-based 
 
 The paper’s Black–Scholes analysis shows:
 
-- the **bias** due to time discretization is linear in \(\Delta t\) and also grows with \(\lambda\),
-- the **variance** of the learning signal has a term of order \(\lambda^{-1}\).
+- the **bias** due to time discretization is linear in $\Delta t$ and also grows with $\lambda$,
+- the **variance** of the learning signal has a term of order $\lambda^{-1}$.
 
 So:
-- small \(\lambda\) reduces bias,
-- large \(\lambda\) reduces variance,
+- small $\lambda$ reduces bias,
+- large $\lambda$ reduces variance,
 - practical tuning requires a balance.
 
 That is an unusually concrete and useful theoretical explanation of why exploration level cannot be taken arbitrarily small or large.
@@ -607,7 +607,7 @@ If I were converting these papers into a modular research repo, I would follow t
 1. **Keep Gaussian actor and quadratic critic as first-class baseline objects.**  
 2. **Store behavior and execution policies separately.**  
 3. **Update covariance through a constrained parameterization, not raw entries.**  
-4. **Treat the \(w\)-update as a slower outer loop.**  
+4. **Treat the $w$-update as a slower outer loop.**  
 5. **Make rebalancing frequency independent of learning frequency.**  
 6. **Implement leverage and risky-only projection as optional wrappers.**  
 7. **Support mini-batch and history-dependent traces from the start.**  

@@ -14,12 +14,20 @@ As of 2026-03-26:
 - Phase 2 config/data foundation exists.
 - Phase 2 bugfix cleanup is complete.
 - Phase 3A features and masking foundation under `src/features/` is complete and verified.
-- Current verified unit-test status is `.venv/bin/pytest tests/unit -q -> 90 passed`.
-- The repo still does not implement paper-specific environments, reward/constraint logic, EMV/CTRL actor-critic models, trainers, or backtests.
+- Phase 3B environment foundation exists but is not yet approved; a bounded constraint bugfix review cycle is active in dialogue.
+- Latest Codex verification with current env code is:
+  - `.venv/bin/pytest tests/unit -q -> 122 passed`
+  - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
+- The active RL implementation target is now:
+  - oracle benchmark from known synthetic parameters first
+  - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
+  - Huang–Jia–Zhou (2022) / 2025 practical online improvements after baseline stability
+- Wang–Zhou (2019/2020) remains a mathematical and derivational reference, not a required implementation layer.
+- Plotting and visualization are required implementation tasks and should be configurable from YAML.
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
-- New work beyond Phase 3A requires a formal GO task assignment in `shared_agent_files/dialogue.txt`.
+- New work beyond the currently assigned bounded task blocks requires a formal GO task assignment in `shared_agent_files/dialogue.txt`.
 - Use `.claude/CLAUDE.md` only for stable baseline rules. Use this file plus dialogue for current-state details.
 
 Historical roadmap blocks below may describe tasks that are already complete. Treat this snapshot plus dialogue as the source of truth for current state.
@@ -180,15 +188,15 @@ Claude Code should execute work in roughly this order:
 2. create setup files (`requirements.txt`, `.gitignore`, `pyproject.toml`),
 3. create utilities foundation,
 4. create config system,
-5. create synthetic environment(s),
+5. create feature / masking support and synthetic environment foundations,
 6. create baseline portfolio constraints and reward logic,
-7. create base model interfaces,
-8. create simple Gaussian actor and quadratic / compact critic,
-9. create offline trainer,
-10. create online trainer,
-11. create evaluation and backtest logic,
+7. create the analytic oracle benchmark for synthetic known-parameter cases,
+8. create base model interfaces,
+9. create the Huang–Jia–Zhou (2025) baseline CTRL actor / critic,
+10. create the modified online CTRL path with 2022/2025 practical improvements,
+11. create evaluation, backtest, and plotting logic,
 12. create test suite,
-13. add optional conditional feature masking support,
+13. create configuration-driven experiment / plotting scripts,
 14. refine for efficiency and code quality.
 
 Do not skip directly to complex algorithms before the scaffolding and tests exist.
@@ -259,7 +267,7 @@ Create config objects or YAML-backed config parsing for:
 - config names are consistent with code and tests.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 - especially notation and ambiguity notes
 
 ---
@@ -337,8 +345,8 @@ Implement:
 - tests verify shape stability and no crash behavior.
 
 ### Reference files
-- `/reference/README_portfolio_management_nn.md` if present
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/README_portfolio_management_nn.md` if present
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -383,8 +391,8 @@ Implement:
 - leverage wrapper works and is separately tested.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_algorithm_summary.md`
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_algorithm_summary.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -415,8 +423,8 @@ Implement:
 - offline and online trainers call the same objective functions.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_algorithm_summary.md`
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_algorithm_summary.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -457,8 +465,8 @@ The critic interface should support:
 - interfaces are tested with toy implementations.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_algorithm_summary.md`
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_algorithm_summary.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -492,7 +500,7 @@ Implement the first working model family.
 - covariance remains valid under repeated updates.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 - use the paper PDFs only if covariance-update details are not sufficiently clear from the summaries.
 
 ---
@@ -504,23 +512,27 @@ Implement learning algorithms incrementally, not all at once.
 
 ### Phase order
 1. oracle / analytic benchmark layer,
-2. simple offline mean-variance baseline,
-3. EMV-style exploratory baseline,
-4. CTRL-style actor-critic baseline,
-5. modified online CTRL variant,
-6. jump-diffusion reuse later.
+2. simple offline mean-variance sanity baseline,
+3. CTRL-style actor-critic baseline from Huang–Jia–Zhou (2025),
+4. modified online CTRL variant with 2022/2025 practical improvements,
+5. jump-diffusion reuse later.
+
+Do not make Wang–Zhou (2019/2020) EMV a required implementation layer in this plan.
+Use it only as a derivational and mathematical reference for the exploratory Gaussian structure and the role of the outer-loop $w$ update.
 
 ### Suggested modules
 - `src/algos/oracle_mv.py`
-- `src/algos/emv.py`
 - `src/algos/ctrl.py`
+- `src/algos/ctrl_online.py`
 
 ### Requirements
 - mark each algorithm clearly as:
   - analytic benchmark,
-  - baseline research implementation,
+  - theorem-aligned baseline research implementation,
   - practical online variant,
 - document which pieces are theorem-backed and which are engineering choices.
+- The oracle strategy must be callable through configuration in synthetic-data runs.
+- The CTRL baseline should expose both stochastic behavior-policy rollout and deterministic execution-policy evaluation.
 
 ### Acceptance criteria
 - each algorithm has at least one smoke test,
@@ -528,9 +540,10 @@ Implement learning algorithms incrementally, not all at once.
 - logs are interpretable.
 
 ### Reference files
-- EMV and CTRL details in:
-  - `/reference/portfolio_mv_papers_algorithm_summary.md`
-  - `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- Oracle, CTRL, and practical-modification details in:
+  - `/references/portfolio_mv_papers_algorithm_summary.md`
+  - `/references/portfolio_mv_papers_companion_implementation_notes.md`
+  - `/references/portfolio_mv_ctrl_complete_pseudocode.md`
 
 ---
 
@@ -564,6 +577,9 @@ Implement:
   - entropy,
   - terminal wealth stats,
   - evaluation metrics,
+  - gradient norms,
+  - training time,
+  - memory pressure when available,
   - behavior-policy vs execution-policy performance.
 
 ### Acceptance criteria
@@ -572,7 +588,7 @@ Implement:
 - output folders are reproducible and organized.
 
 ### Reference files
-- both `/reference/*.md` summaries
+- both `/references/*.md` summaries
 - only query papers for exact update forms if the algorithm module being implemented requires it.
 
 ---
@@ -580,7 +596,7 @@ Implement:
 ## 14. Functionality block: evaluation and backtesting
 
 ### Goal
-Implement separate evaluation utilities.
+Implement separate evaluation and visualization utilities.
 
 ### Tasks
 Implement:
@@ -593,26 +609,40 @@ Implement:
 - turnover,
 - optional transaction-cost-adjusted returns,
 - seed aggregation,
-- deterministic execution evaluation.
+- deterministic execution evaluation,
+- training diagnostics plots,
+- wealth-trajectory comparison plots,
+- portfolio-weight path plots,
+- optional metric overlays on plots.
 
 ### Suggested modules
 - `src/eval/metrics.py`
 - `src/eval/evaluator.py`
+- `src/eval/plots.py`
 - `src/backtest/portfolio_paths.py`
 
 ### Requirements
 - training objective and evaluation metrics must remain separate,
 - evaluation should support both stochastic behavior policy and deterministic execution policy,
-- report settings clearly in saved results.
+- report settings clearly in saved results,
+- plotting must be configurable through YAML,
+- plotting should work from saved logs / checkpoints rather than only live training state,
+- training plots should cover at least:
+  - losses,
+  - gradient magnitudes,
+  - training time,
+  - memory pressure when collected.
 
 ### Acceptance criteria
 - evaluator works from saved checkpoints,
 - metrics are independently unit tested,
-- path summaries and aggregate tables are consistent.
+- path summaries and aggregate tables are consistent,
+- plot generation works from a saved run directory,
+- wealth and portfolio plots are reproducible under fixed inputs.
 
 ### Reference files
-- `/reference/README_portfolio_management_nn.md` if present
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/README_portfolio_management_nn.md` if present
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -653,7 +683,7 @@ Test:
 - regression tests are deterministic.
 
 ### Reference files
-- `/reference/portfolio_mv_papers_companion_implementation_notes.md`
+- `/references/portfolio_mv_papers_companion_implementation_notes.md`
 
 ---
 
@@ -710,7 +740,24 @@ Should reference:
 - metrics,
 - checkpoint loaders.
 
-### 16.4 `scripts/run_smoke_test.py`
+### 16.4 `scripts/plot_results.py`
+Purpose:
+- load config and saved run outputs,
+- generate configured diagnostic and portfolio plots.
+
+Tasks:
+- support training-diagnostics plots,
+- support wealth-trajectory comparison plots,
+- support portfolio-weight path plots,
+- optionally overlay evaluation metrics or summary tables,
+- save outputs cleanly under the run directory.
+
+Should reference:
+- evaluator,
+- plotting utilities,
+- saved logs / checkpoints.
+
+### 16.5 `scripts/run_smoke_test.py`
 Purpose:
 - very fast integration check.
 
@@ -781,8 +828,8 @@ The first usable version is complete when all of the following hold:
 ## 20. Final reminder to Claude Code
 
 Before querying original papers:
-1. check `/reference/portfolio_mv_papers_algorithm_summary.md`,
-2. check `/reference/portfolio_mv_papers_companion_implementation_notes.md`,
+1. check `/references/portfolio_mv_papers_algorithm_summary.md`,
+2. check `/references/portfolio_mv_papers_companion_implementation_notes.md`,
 3. inspect current repo code and tests,
 4. only then consult `/references/papers/` if a real ambiguity remains.
 

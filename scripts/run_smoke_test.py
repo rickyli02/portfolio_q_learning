@@ -173,6 +173,36 @@ def main(config_path: str) -> int:
     results.append(_check("EpisodeDataset construction + batch", _dataset))
 
     # ------------------------------------------------------------------
+    # 6. GBM environment
+    # ------------------------------------------------------------------
+    def _gbm_env():
+        import torch
+        from src.envs.gbm_env import GBMPortfolioEnv
+
+        env = GBMPortfolioEnv(cfg.env)
+        obs, info = env.reset(seed=cfg.seed)
+        assert obs.shape == (env.obs_dim,)
+        assert info["time"].item() == 0.0
+
+        all_done = False
+        for _ in range(cfg.env.n_steps):
+            action = torch.zeros(env.action_dim)  # risk-free only
+            step = env.step(action)
+            all_done = step.done
+
+        assert all_done, "Episode should end after n_steps"
+        # Risk-free-only: final wealth ≈ initial * exp(r * T)
+        import math
+        r, T = cfg.env.assets.risk_free_rate, cfg.env.horizon
+        expected = cfg.env.initial_wealth * math.exp(r * T)
+        assert abs(step.wealth.item() - expected) < 1e-4, (
+            f"Risk-free wealth mismatch: got {step.wealth.item():.6f}, "
+            f"expected {expected:.6f}"
+        )
+
+    results.append(_check("GBM environment step + risk-free sanity", _gbm_env))
+
+    # ------------------------------------------------------------------
     # Summary
     # ------------------------------------------------------------------
     n_pass = sum(results)
