@@ -6,7 +6,7 @@ Current primitives:
 - Phase 10A: outer-loop w (Lagrange multiplier) update primitive (``ctrl_w_update``).
 - Phase 10B: single outer iteration — inner run + w update (``ctrl_outer_iter``).
 - Phase 10C: fixed-length outer-loop schedule (``ctrl_outer_loop``).
-- Phase 11A: stateful trainer shell with persistent current_w (``CTRLTrainerState``).
+- Phase 11A/11B: stateful trainer shell with persistent current_w and validation boundary (``CTRLTrainerState``).
 
 Future phases will add checkpoint and logging infrastructure, config-dispatch
 wiring, and full offline/online trainer classes.  Those are not present yet.

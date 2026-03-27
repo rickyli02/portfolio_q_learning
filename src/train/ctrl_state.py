@@ -1,4 +1,4 @@
-"""Stateful CTRL trainer shell — Phase 11A.
+"""Stateful CTRL trainer shell — Phase 11A/11B.
 
 REPO ENGINEERING NOTES
 ----------------------
@@ -11,6 +11,11 @@ already-approved functional helpers from Phases 10B and 10C:
 ``CTRLTrainerState`` holds live objects (actor, critic, env, optimizers) and a
 persistent ``current_w`` that is updated in place after each call.  Callers
 can chain multiple calls without manually threading ``w`` between them.
+
+Phase 11B adds a centralized validation boundary at the stateful shell layer:
+- constructor validates finite scalar fields and w_step_size > 0
+- ``run_outer_iter`` validates ``n_updates >= 1`` and bound order
+- ``run_outer_loop`` validates ``n_outer_iters >= 1``, ``n_updates >= 1``, and bound order
 
 SCOPE BOUNDARY
 --------------
@@ -26,6 +31,8 @@ These belong in future bounded tasks.
 """
 
 from __future__ import annotations
+
+import math
 
 import torch
 
@@ -66,6 +73,12 @@ class CTRLTrainerState:
         target_return_z: float,
         w_step_size: float,
     ) -> None:
+        if not math.isfinite(current_w):
+            raise ValueError(f"current_w must be finite, got {current_w}")
+        if not math.isfinite(target_return_z):
+            raise ValueError(f"target_return_z must be finite, got {target_return_z}")
+        if w_step_size <= 0.0 or not math.isfinite(w_step_size):
+            raise ValueError(f"w_step_size must be finite and > 0, got {w_step_size}")
         self.actor = actor
         self.critic = critic
         self.env = env
@@ -98,7 +111,16 @@ class CTRLTrainerState:
 
         Returns:
             ``CTRLOuterIterResult`` from ``ctrl_outer_iter``.
+
+        Raises:
+            ValueError: if ``n_updates < 1`` or bound order is invalid.
         """
+        if n_updates < 1:
+            raise ValueError(f"n_updates must be >= 1, got {n_updates}")
+        if w_min is not None and w_max is not None and w_min > w_max:
+            raise ValueError(
+                f"w_min must be <= w_max when both are provided, got w_min={w_min}, w_max={w_max}"
+            )
         result = ctrl_outer_iter(
             actor=self.actor,
             critic=self.critic,
@@ -143,7 +165,18 @@ class CTRLTrainerState:
 
         Returns:
             ``CTRLOuterLoopResult`` from ``ctrl_outer_loop``.
+
+        Raises:
+            ValueError: if ``n_outer_iters < 1``, ``n_updates < 1``, or bound order is invalid.
         """
+        if n_outer_iters < 1:
+            raise ValueError(f"n_outer_iters must be >= 1, got {n_outer_iters}")
+        if n_updates < 1:
+            raise ValueError(f"n_updates must be >= 1, got {n_updates}")
+        if w_min is not None and w_max is not None and w_min > w_max:
+            raise ValueError(
+                f"w_min must be <= w_max when both are provided, got w_min={w_min}, w_max={w_max}"
+            )
         result = ctrl_outer_loop(
             actor=self.actor,
             critic=self.critic,

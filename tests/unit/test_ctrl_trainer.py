@@ -1,4 +1,4 @@
-"""Unit tests for src/train/ — Phases 9A/9B (step/run), 10A (w update), 10B (outer iter), 10C (outer loop), 11A (stateful shell)."""
+"""Unit tests for src/train/ — Phases 9A/9B (step/run), 10A (w update), 10B (outer iter), 10C (outer loop), 11A/11B (stateful shell + validation)."""
 
 import math
 
@@ -983,10 +983,8 @@ def test_trainer_state_stores_all_fields():
 def test_trainer_state_run_outer_iter_mutates_w():
     """run_outer_iter updates current_w to result.w_next."""
     state = _make_trainer_state(w_init=1.0)
-    w_before = state.current_w
     result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
     assert state.current_w == pytest.approx(result.w_next)
-    # w must have been updated (result.w_next comes from w_update, not necessarily equal to w_before)
     assert isinstance(result.w_next, float)
 
 
@@ -1036,7 +1034,7 @@ def test_trainer_state_run_outer_loop_w_init_matches_current_w_before_call():
 def test_trainer_state_consecutive_outer_iter_calls_thread_w():
     """Second run_outer_iter call starts from the w set by the first."""
     state = _make_trainer_state(w_init=1.0)
-    r1 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
     w_after_first = state.current_w
     r2 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
     # second call's w_prev must equal w after first call
@@ -1047,7 +1045,7 @@ def test_trainer_state_consecutive_outer_iter_calls_thread_w():
 def test_trainer_state_consecutive_outer_loop_calls_thread_w():
     """Second run_outer_loop call starts from the w set by the first."""
     state = _make_trainer_state(w_init=1.0)
-    r1 = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
     w_after_first = state.current_w
     r2 = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=10)
     assert r2.w_init == pytest.approx(w_after_first)
@@ -1057,7 +1055,7 @@ def test_trainer_state_consecutive_outer_loop_calls_thread_w():
 def test_trainer_state_mixed_consecutive_calls_thread_w():
     """run_outer_iter followed by run_outer_loop uses updated w."""
     state = _make_trainer_state(w_init=1.0)
-    r_iter = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
     w_mid = state.current_w
     r_loop = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=5)
     assert r_loop.w_init == pytest.approx(w_mid)
@@ -1091,3 +1089,148 @@ def test_trainer_state_outer_loop_reproducible():
 def test_phase11a_public_api_imports():
     from src.train import CTRLTrainerState
     assert CTRLTrainerState is not None
+
+
+# ===========================================================================
+# Phase 11B — CTRLTrainerState validation boundary
+# ===========================================================================
+
+# --- constructor validation ---
+
+def test_trainer_state_invalid_w_step_size_zero_raises():
+    """Constructor rejects w_step_size == 0."""
+    with pytest.raises(ValueError, match="w_step_size"):
+        _make_trainer_state(w_step_size=0.0)
+
+
+def test_trainer_state_invalid_w_step_size_negative_raises():
+    """Constructor rejects negative w_step_size."""
+    with pytest.raises(ValueError, match="w_step_size"):
+        _make_trainer_state(w_step_size=-1.0)
+
+
+def test_trainer_state_invalid_w_step_size_inf_raises():
+    """Constructor rejects infinite w_step_size."""
+    with pytest.raises(ValueError, match="w_step_size"):
+        _make_trainer_state(w_step_size=float("inf"))
+
+
+def test_trainer_state_invalid_current_w_nan_raises():
+    """Constructor rejects NaN current_w."""
+    with pytest.raises(ValueError, match="current_w"):
+        _make_trainer_state(w_init=float("nan"))
+
+
+def test_trainer_state_invalid_current_w_inf_raises():
+    """Constructor rejects infinite current_w."""
+    with pytest.raises(ValueError, match="current_w"):
+        _make_trainer_state(w_init=float("inf"))
+
+
+def test_trainer_state_invalid_target_return_z_nan_raises():
+    """Constructor rejects NaN target_return_z."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env(n_steps=4)
+    actor_opt, critic_opt = _make_optimizers(actor, critic)
+    with pytest.raises(ValueError, match="target_return_z"):
+        CTRLTrainerState(
+            actor=actor, critic=critic, env=env,
+            actor_optimizer=actor_opt, critic_optimizer=critic_opt,
+            current_w=1.0, target_return_z=float("nan"), w_step_size=0.1,
+        )
+
+
+# --- run_outer_iter validation ---
+
+def test_trainer_state_outer_iter_invalid_n_updates_zero_raises():
+    """run_outer_iter rejects n_updates == 0."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="n_updates"):
+        state.run_outer_iter(n_updates=0, entropy_temp=0.01)
+
+
+def test_trainer_state_outer_iter_invalid_n_updates_negative_raises():
+    """run_outer_iter rejects negative n_updates."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="n_updates"):
+        state.run_outer_iter(n_updates=-1, entropy_temp=0.01)
+
+
+def test_trainer_state_outer_iter_invalid_bound_order_raises():
+    """run_outer_iter rejects w_min > w_max."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="w_min"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01, w_min=2.0, w_max=1.0)
+
+
+def test_trainer_state_outer_iter_equal_bounds_does_not_raise():
+    """run_outer_iter accepts w_min == w_max (degenerate projection is valid)."""
+    state = _make_trainer_state(w_init=1.5)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0, w_min=1.5, w_max=1.5)
+    assert result.w_next == pytest.approx(1.5)
+
+
+# --- run_outer_loop validation ---
+
+def test_trainer_state_outer_loop_invalid_n_outer_iters_zero_raises():
+    """run_outer_loop rejects n_outer_iters == 0."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="n_outer_iters"):
+        state.run_outer_loop(n_outer_iters=0, n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_outer_loop_invalid_n_outer_iters_negative_raises():
+    """run_outer_loop rejects negative n_outer_iters."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="n_outer_iters"):
+        state.run_outer_loop(n_outer_iters=-1, n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_outer_loop_invalid_n_updates_zero_raises():
+    """run_outer_loop rejects n_updates == 0."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="n_updates"):
+        state.run_outer_loop(n_outer_iters=1, n_updates=0, entropy_temp=0.01)
+
+
+def test_trainer_state_outer_loop_invalid_bound_order_raises():
+    """run_outer_loop rejects w_min > w_max."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="w_min"):
+        state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, w_min=3.0, w_max=1.0)
+
+
+# --- w_step_size caught through state shell ---
+
+def test_trainer_state_w_step_size_zero_caught_at_construction():
+    """w_step_size=0 is caught at the constructor, before any method call."""
+    with pytest.raises(ValueError, match="w_step_size"):
+        _make_trainer_state(w_step_size=0.0)
+
+
+# --- happy path still works after Phase 11B ---
+
+def test_trainer_state_valid_construction_and_outer_iter():
+    """Valid state still runs run_outer_iter without error."""
+    state = _make_trainer_state(w_init=1.0, w_step_size=0.05)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(result.w_next, float)
+
+
+def test_trainer_state_valid_construction_and_outer_loop():
+    """Valid state still runs run_outer_loop without error."""
+    state = _make_trainer_state(w_init=1.0, w_step_size=0.05)
+    result = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(result.w_final, float)
+
+
+# --- public API unchanged (Phase 11B) ---
+
+def test_phase11b_public_api_unchanged():
+    from src.train import CTRLTrainerState
+    state = _make_trainer_state()
+    assert hasattr(state, "run_outer_iter")
+    assert hasattr(state, "run_outer_loop")
+    assert callable(state.run_outer_iter)
+    assert callable(state.run_outer_loop)
