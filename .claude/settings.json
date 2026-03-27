@@ -43,5 +43,6 @@
   "attribution": {
    "commit": "Generated with Claude Code", 
    "pr": ""
-  }
+  },
+  "autoMemoryDirectory": ".claude/memory"
 }

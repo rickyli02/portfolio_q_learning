@@ -14,9 +14,11 @@ As of 2026-03-26:
 - Phase 2 config/data foundation exists.
 - Phase 2 bugfix cleanup is complete.
 - Phase 3A features and masking foundation under `src/features/` is complete and verified.
-- Phase 3B environment foundation exists but is not yet approved; a bounded constraint bugfix review cycle is active in dialogue.
+- Phase 3B environment foundation exists.
+- Signed-allocation constraint bugs were fixed and verified in `.venv`.
+- Final Phase 3B approval is still pending one last zero-gross `apply_risky_only_projection()` policy update from dialogue review.
 - Latest Codex verification with current env code is:
-  - `.venv/bin/pytest tests/unit -q -> 122 passed`
+  - `.venv/bin/pytest tests/unit -q -> 127 passed`
   - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
@@ -24,6 +26,11 @@ As of 2026-03-26:
   - Huang–Jia–Zhou (2022) / 2025 practical online improvements after baseline stability
 - Wang–Zhou (2019/2020) remains a mathematical and derivational reference, not a required implementation layer.
 - Plotting and visualization are required implementation tasks and should be configurable from YAML.
+- Pending follow-up TODO items identified by review and not yet implemented:
+  - add `PlottingConfig` to the config schema when plotting implementation begins
+  - add an algorithm / strategy selector config field when oracle-vs-CTRL wiring begins
+  - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
+  - add concrete memory-pressure capture guidance to logging / plotting work
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
@@ -161,13 +168,14 @@ repo_root/
 │   ├── models/
 │   ├── algos/
 │   ├── train/
-│   ├── eval/
+│   ├── eval/                  # metrics, evaluator, plots
 │   ├── backtest/
 │   └── utils/
 ├── scripts/
 │   ├── train_offline.py
 │   ├── train_online.py
 │   ├── evaluate.py
+│   ├── plot_results.py
 │   └── run_smoke_test.py
 ├── tests/
 │   ├── unit/
@@ -364,7 +372,7 @@ Create synthetic portfolio environments that support initial experiments and the
 ### Tasks
 Implement:
 
-- discounted-wealth portfolio environment,
+- portfolio environment with explicit nominal-vs-discounted wealth choice,
 - transition stepping,
 - reward computation,
 - action application and rebalance timing,
@@ -383,6 +391,7 @@ Implement:
 - action convention must be documented clearly:
   - dollar allocation or portfolio weights,
 - discounted vs nominal wealth must be explicit,
+  - current `GBMPortfolioEnv` uses nominal wealth,
 - execution schedule must be separable from learning update schedule.
 
 ### Acceptance criteria

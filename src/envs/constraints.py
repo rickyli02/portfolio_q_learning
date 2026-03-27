@@ -96,7 +96,13 @@ def apply_risky_only_projection(
         Rescaled allocation where Σ|u_i| = wealth.
 
     Raises:
-        ValueError: If ``wealth`` is not positive.
+        ValueError: If the input action has zero gross exposure (Σ|u_i| = 0),
+            because there is no direction to rescale into a risky-only
+            portfolio.  Design decision: zero-action inputs must be handled by
+            the caller (e.g. by skipping projection when no risky allocation is
+            intended).
+        ValueError: If ``wealth`` is not positive (scalar check only; tensor
+            wealth is the caller's responsibility).
     """
     if isinstance(wealth, (int, float)):
         if wealth <= 0:
@@ -105,7 +111,14 @@ def apply_risky_only_projection(
 
     wealth = wealth.to(action.device)
 
-    gross = action.abs().sum(dim=-1, keepdim=True).clamp(min=1e-8)
+    gross = action.abs().sum(dim=-1, keepdim=True)  # (..., 1)
+    if (gross == 0).any():
+        raise ValueError(
+            "apply_risky_only_projection requires non-zero gross exposure "
+            "(Σ|u_i| > 0).  The input action has zero gross exposure, so "
+            "there is no direction to rescale.  Handle zero-action inputs "
+            "in the caller before calling this function."
+        )
     w = wealth.unsqueeze(-1) if wealth.dim() > 0 else wealth
     return action / gross * w
 

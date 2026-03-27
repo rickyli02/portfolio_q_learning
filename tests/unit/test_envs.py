@@ -326,6 +326,12 @@ def test_risky_only_sign_ratio_preserved():
     assert (out[0].abs() / out[1].abs()).item() == pytest.approx(2.0, rel=1e-5)
 
 
+def test_risky_only_zero_gross_raises():
+    """Zero-gross input must raise ValueError (design decision: no direction to rescale)."""
+    with pytest.raises(ValueError, match="zero gross exposure"):
+        apply_risky_only_projection(torch.zeros(2), torch.tensor(1.0))
+
+
 # ---------------------------------------------------------------------------
 # constraints — clip_action_norm
 # ---------------------------------------------------------------------------

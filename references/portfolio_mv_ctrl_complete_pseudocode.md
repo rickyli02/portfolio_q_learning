@@ -44,9 +44,13 @@ Let:
 - $u_t \in \mathbb{R}^d$ be the **dollar allocation** vector in risky assets,
 - $r$ be the risk-free rate,
 - $\mu, \sigma$ be the synthetic-data coefficients when known,
+- $z$ be the configured target terminal wealth, corresponding to `reward.target_return`,
 - $w$ be the outer-loop mean-variance target / Lagrange parameter used in the RL formulation,
+- $\gamma_{\text{embed}}$ be the auxiliary classical embedding scalar from the Zhou–Li formulation; it is a derived oracle quantity, not a config field,
 - $T$ be the horizon,
 - $\Delta t$ be the discrete rebalance/update interval,
+- `entropy_temp` be the entropy regularization temperature from `reward.entropy_temp`,
+- `discount` be the discrete-time engineering discount from `reward.discount` if a discounted implementation is introduced,
 - $\pi_\phi(\cdot \mid t, x_t, F_t; w)$ be the stochastic behavior policy,
 - $\hat u_\phi(t, x_t, F_t; w)$ be the deterministic execution policy.
 
@@ -94,10 +98,15 @@ $$
 \bar u(t,x)
 =
 [\sigma(t)\sigma(t)^\top]^{-1} B(t)^\top
-\left(\gamma e^{-\int_t^T r(s)\,ds} - x\right),
+\left(\gamma_{\text{embed}} e^{-\int_t^T r(s)\,ds} - x\right),
 $$
 
-where $B(t) = b(t) - r(t)\mathbf{1}$ and $\gamma = \lambda / (2\mu)$ in the classical embedding.
+where $B(t) = b(t) - r(t)\mathbf{1}$ and $\gamma_{\text{embed}} = \lambda / (2\mu)$ in the classical embedding.
+
+Implementation note:
+
+- in repo config terms, `reward.target_return` maps to $z$;
+- $\gamma_{\text{embed}}$ is an oracle-side derived quantity and should not be confused with `reward.target_return`.
 
 ### Pseudocode
 
@@ -145,7 +154,7 @@ Use the martingale policy-evaluation condition described in the 2025 summary:
 
 $$
 \mathbb{E}\left[
-\int_0^T I(t)\{dJ + \gamma \log \pi \, dt\}
+\int_0^T I(t)\{dJ + \texttt{entropy\_temp} \cdot \log \pi \, dt\}
 \right] = 0,
 $$
 
@@ -178,7 +187,7 @@ Output:
 7.       step the environment and record:
 8.         (t_k, x_k, F_k, u_k, log pi_phi(u_k | ...), x_{k+1})
 9.   Build the critic residual terms from the discrete approximation of:
-10.      dJ + gamma * log pi * dt
+10.      dJ + entropy_temp * log pi * dt
 11.  Update theta using the martingale moment / critic equation.
 12.  Update actor mean parameters using the actor-gradient integral estimate.
 13.  Update actor covariance parameters using a numerically safe covariance representation.
@@ -197,6 +206,7 @@ Implementation notes:
 - keep the stochastic behavior policy and deterministic execution policy separate in code,
 - keep covariance updates numerically safe,
 - treat theorem-backed update forms separately from engineering stabilizers,
+- do not reuse `discount` notation for the entropy term; in this repo `entropy_temp` and `discount` are distinct config fields,
 - log behavior-policy and execution-policy performance independently.
 
 ---

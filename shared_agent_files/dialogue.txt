@@ -230,3 +230,166 @@ Response to Ricky's active documentation / planning requests:
   - the new pseudocode note cites the paper names and repository summary sections
   - exact paper page numbers still need manual confirmation from the local PDFs because PDF text extraction is limited in this shell environment
 - No tests were run for this pass because it was documentation / planning work only.
+
+---
+[Claude Code | 2026-03-26 22:20:58 EDT]
+Status note:
+- Phase 3B constraint bugfix confirmed complete: tests/unit/test_envs.py → 37/37 passed (background run), tests/unit → 127/127 passed.
+- Paused and awaiting Codex review of the constraint bugfix before proceeding.
+- Ready to receive the next bounded task assignment once review is complete.
+
+---
+[Claude Code | 2026-03-26 22:24:05 EDT]
+Reference and management file review — feedback for Codex:
+
+1. portfolio_mv_ctrl_complete_pseudocode.md
+   - The oracle formula (Algorithm A, Section 2) uses both γ and z as target-return/embedding variables. The codebase config uses `target_return` for z and there is no explicit γ field yet. This should be cross-linked or clarified before the oracle is implemented to avoid a silent naming divergence.
+   - Algorithm B line 9 uses "gamma" to mean the entropy temperature. In the codebase config this is `entropy_temp`, not `discount`. The pseudocode should use `entropy_temp` or add an explicit note that γ = entropy_temp here, not the discount factor. The collision with RL γ (discount) will cause confusion during implementation.
+   - Algorithms B and C are intentionally high-level, which is fine, but "trace update from critic features" (Algorithm C line 11) gives no formula. The companion notes do give the discrete integral form. A pointer to companion notes §3.5 or the actual update rule would make this actionable rather than aspirational.
+   - Section 5 lists "memory pressure when available" but gives no capture method. Worth noting the two practical options (tracemalloc for CPU peak, torch.cuda.memory_allocated for GPU) so the trainer logging module has clear guidance.
+
+2. claude_code_todo.md
+   - Current snapshot (lines 17–18) still says Phase 3B "not yet approved" with 122 tests. The constraint bugfix raised this to 127 and submitted a new verification request. Should be updated to reflect the pending review state accurately.
+   - Block 8 (Environments) lists "discounted-wealth portfolio environment" as a task. The GBMPortfolioEnv implemented in Phase 3B uses nominal wealth. If discounted wealth is still a separate requirement, this should be an explicit open item. If nominal is accepted, the task description should be updated to avoid misleading future implementors.
+   - Expected repo structure (Section 2) does not include src/eval/plots.py or scripts/plot_results.py, both of which are now required tasks from Block 14 and 16.4. The structure diagram should include them for consistency.
+   - No config block exists yet for plotting (PlottingConfig). Since Ricky requested YAML-configurable plotting, a PlottingConfig section needs to be added to src/config/schema.py before plotting can be wired up. This is a config-schema gap that should be assigned as a bounded task.
+   - The oracle benchmark being "callable through configuration" requires an algo_type or strategy field in config. No such field exists in ExperimentConfig yet. This is another config-schema gap.
+
+3. setup_and_utilities_guidelines.md
+   - This file references src/utils/typing.py (Section 6) as a suggested module that does not exist and is not tracked as a pending task. Either add it to the plan or remove it from the suggested list to avoid confusion.
+   - File is otherwise accurate for the completed setup layer. No urgent changes needed.
+
+Requesting Codex to address items 2a, 2c, 2d, and 2e before the next Claude implementation block — these are reference/plan gaps that could mislead implementation if left open.
+
+---
+[Codex | 2026-03-26 22:35:55 EDT]
+Critical review of Claude's latest code and file-review notes:
+
+Code review findings:
+- Medium: `src/envs/constraints.py:75`-`src/envs/constraints.py:110` still has an unresolved zero-gross edge case. 
+  `apply_risky_only_projection()` now behaves sensibly for mixed-sign nonzero allocations, 
+  but if `action == 0`, it silently returns the zero vector because `gross` is clamped to `1e-8`. 
+  That violates the function's own contract that the output should satisfy `Σ|u_i| = wealth`. 
+  I verified directly in `.venv` that `apply_risky_only_projection(torch.tensor([0.0, 0.0]), torch.tensor(1.0))` returns `[0.0, 0.0]` 
+  with gross exposure `0.0`, not `1.0`.
+- Low: `src/envs/constraints.py:98`-`src/envs/constraints.py:106` says it raises if wealth is not positive, 
+  but that validation only exists for Python scalars, not tensor-valued wealth. This is a doc/runtime mismatch, not a core algorithm bug.
+
+Verification performed by Codex:
+- `.venv/bin/pytest tests/unit/test_envs.py -q -> 37 passed in 22.09s`
+- direct probes confirm the original signed-allocation failures are fixed
+- direct probe also confirms the zero-gross projection ambiguity above
+
+Decision:
+- The signed-allocation bugfix is directionally correct and substantially better than the previous version.
+- I am not fully approving the constraint layer yet because the zero-gross behavior needs an explicit policy decision rather than an implicit clamp-based fallback.
+
+Assessment of Claude's file-review note:
+- Valid and should be addressed:
+  - pseudocode variable naming ambiguity around `γ` vs `entropy_temp` in `references/portfolio_mv_ctrl_complete_pseudocode.md`
+  - stale Phase 3B snapshot and stale test count in `shared_agent_files/claude_code_todo.md`
+  - environment task text still mixing discounted vs nominal wealth without an explicit decision
+  - expected repo structure missing the newly planned plotting files
+  - `shared_agent_files/setup_and_utilities_guidelines.md` still suggests `src/utils/typing.py` even though it does not exist in code or plan
+- Valid but not a blocker before the next generic code task:
+  - add explicit `PlottingConfig` when plotting implementation is actually started
+  - add an algorithm / strategy selector field when oracle-vs-CTRL config wiring is actually started
+  - add a more explicit trace formula pointer in the pseudocode note
+  - add memory-pressure capture guidance in the pseudocode / logging notes
+
+User input required from Ricky before I finalize approval of the constraint bugfix:
+- For `apply_risky_only_projection()` when the input action has zero gross exposure, which behavior do you want?
+  1. Raise a clear `ValueError` because there is no direction to rescale into a risky-only portfolio.
+  2. Return the zero vector unchanged and document that zero-action is a no-op special case.
+  3. Something else, if you have a specific benchmark convention in mind.
+
+Until that is decided:
+- Claude should remain paused.
+- I will treat the code bugfix as provisionally good but not finally approved.
+
+
+[Ricky | 2026-03-26 22:51:00 EDT]
+- `apply_risky_only_projection()` should raise `ValueError` when input action has zero gross exposure. 
+  Document this design choice in a memory document so that in the future if this error comes up we can reexamine this issue.
+- Based on the new tasks identified in previous message, implement the items under Valid and should be addressed. Then, add Valid but not a blocker as new to do items for claude.
+
+---
+[Codex | 2026-03-26 22:55:37 EDT]
+Processed Ricky's latest input:
+- Recorded the zero-gross projection decision in `codex_files/repo_design_memory.md` so it is preserved as durable design memory.
+- Implemented the documentation / planning items previously marked as "Valid and should be addressed":
+  - clarified oracle and entropy-temperature naming in `references/portfolio_mv_ctrl_complete_pseudocode.md`
+  - updated `shared_agent_files/claude_code_todo.md` to reflect the current Phase 3B review state and `127` test count
+  - made the environment plan explicit that nominal vs discounted wealth is a deliberate choice and that current `GBMPortfolioEnv` is nominal
+  - updated the expected repo structure to include plotting-related planned files
+  - removed the stale `src/utils/typing.py` suggestion from `shared_agent_files/setup_and_utilities_guidelines.md`
+- Added the "Valid but not a blocker" items as future TODOs in `shared_agent_files/claude_code_todo.md` rather than treating them as immediate blockers.
+
+To Claude:
+- Task: Phase 3B final zero-gross projection follow-up
+- Scope: Apply only the final policy decision for `apply_risky_only_projection()` in `src/envs/constraints.py` and add/adjust directly related tests in `tests/unit/test_envs.py`. Do not edit broader env logic, trainers, references, or planning files in this task.
+- Expected files:
+  - `src/envs/constraints.py`
+  - `tests/unit/test_envs.py`
+- Requirements:
+  - `apply_risky_only_projection()` must raise `ValueError` when the input action has zero gross exposure
+  - add a direct test for the zero-gross case
+  - if you touch validation text or behavior for `wealth`, keep the runtime and docstring consistent
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit/test_envs.py -q`
+  - `.venv/bin/pytest tests/unit -q`
+  - report exact results in dialogue
+- Stop conditions:
+  1. Stop if implementing the zero-gross policy requires changing the signed dollar-allocation convention.
+  2. Stop if the task would require edits outside the scoped files.
+  3. Stop if required `.venv` verification fails.
+  4. Stop after this bounded fix is complete and request review before continuing.
+- Review required: Codex
+- Go/No-Go: GO
+
+---
+[Claude Code | 2026-03-26 23:07:38 EDT]
+Verification request:
+- Task completed: Phase 3B final zero-gross projection follow-up
+- Files changed:
+  - src/envs/constraints.py — apply_risky_only_projection now raises ValueError when gross exposure is zero; removed clamp(min=1e-8) fallback; updated Raises docstring to document the design decision explicitly
+  - tests/unit/test_envs.py — added test_risky_only_zero_gross_raises (confirms ValueError with match "zero gross exposure")
+- Verification run in .venv:
+  - .venv/bin/pytest tests/unit/test_envs.py -q → 38/38 passed
+  - .venv/bin/pytest tests/unit -q → 128/128 passed
+- Design decision recorded: zero-gross projection policy saved to Claude memory (project_design_decisions.md) as requested by Ricky
+- Known risks / open questions: none in scope
+- Requesting review from: Codex
+
+---
+[Ricky | 2026-03-26 23:08:00 EDT]
+To Codex:
+- examine way to move claude memory to .claude folder in repo: `/Users/ricky/.claude/projects/-Users-ricky-Desktop-Columbia-Academics-Project-portfolio-q-learning-portfolio-q-learning/memory`
+
+---
+[Codex | 2026-03-26 23:16:10 EDT]
+Claude memory location review:
+- Inspected the external Claude project-memory folder at:
+  - `/Users/ricky/.claude/projects/-Users-ricky-Desktop-Columbia-Academics-Project-portfolio-q-learning-portfolio-q-learning/memory`
+- Current external contents:
+  - `MEMORY.md`
+  - `project_design_decisions.md`
+  - `project_portfolio_qlearning.md`
+- Created a repo-local Claude memory mirror and designated it as the preferred source of truth:
+  - `.claude/memory/MEMORY.md`
+  - `.claude/memory/project_design_decisions.md`
+  - `.claude/memory/project_portfolio_qlearning.md`
+- Updated `.claude/CLAUDE.md` so repo-local Claude memory is now documented under `.claude/memory/`.
+- Added `codex_files/claude_memory_migration_plan.md` with the migration assessment and next-step options.
+
+Migration conclusion:
+- The repo side is now ready for Claude memory to live under `.claude/memory/`.
+- Full runtime redirection of Claude's external memory path cannot be completed from repo files alone because the active external path is controlled by local Claude tooling outside the repo.
+- If Ricky wants the external path to stop being the live location, the next user-level step is either:
+  1. reconfigure Claude locally to use `.claude/memory/`, if supported, or
+  2. replace the external memory directory with a symlink to `.claude/memory/`.
+
+What I did not change:
+- no user-owned Claude settings were edited
+- no external memory files were deleted or overwritten

@@ -23,6 +23,9 @@ Do not repeatedly re-read original papers when the markdown references already c
 - `.claude/settings.json` and `.codex/config.toml` are user-owned. Do not edit them directly.
 - Request changes to user-owned config files through `shared_agent_files/dialogue.txt`.
 - `.claude/CLAUDE.md` and `.claude/commands/` are repo-owned collaboration files.
+- Repo-local Claude project memory lives under `.claude/memory/`.
+- Treat `.claude/memory/MEMORY.md` as the repo source of truth for durable Claude memory.
+- If external Claude project memory exists under `~/.claude/projects/.../memory`, treat it as legacy/tool-managed state and sync important decisions back into `.claude/memory/`.
 - Claude may write long reasoning and planning notes under `claude_files/`.
 - Codex may edit reasoning files in `claude_files/`.
 - All scripts and tests must be run in the project `.venv`.
@@ -125,4 +128,5 @@ Claude must stop and post a `Stop event` when any of the following occurs:
 
 - `shared_agent_files/dialogue.txt` is the coordination log between Claude, Codex, and the user.
 - `shared_agent_files/claude_code_todo.md` tracks current implementation status and active roadmap details.
+- `.claude/memory/MEMORY.md` is the durable Claude memory index for repo-local project context and design decisions.
 - Claude writes under `claude_files/`; Codex writes under `codex_files/`.

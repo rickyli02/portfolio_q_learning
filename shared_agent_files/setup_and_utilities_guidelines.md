@@ -247,8 +247,7 @@ src/utils/
 ├── device.py
 ├── io.py
 ├── paths.py
-├── logging.py
-└── typing.py
+└── logging.py
 ```
 
 ### Utility design rules
