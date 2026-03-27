@@ -53,3 +53,21 @@ logging:
   log_level: INFO
   save_checkpoints: true
   checkpoint_interval: 10
+
+algo:
+  algo_type: ctrl_baseline
+  n_oracle_episodes: 100
+
+plotting:
+  enabled: true
+  output_dir: plots
+  figure_format: png
+  dpi: 150
+  plot_losses: true
+  plot_gradients: true
+  plot_training_time: false
+  plot_memory: false
+  plot_wealth_trajectories: true
+  plot_portfolio_weights: true
+  plot_eval_metrics: true
+  n_trajectory_samples: 10

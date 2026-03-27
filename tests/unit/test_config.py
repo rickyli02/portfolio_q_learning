@@ -7,8 +7,10 @@ import pytest
 import yaml
 
 from src.config.schema import (
+    AlgorithmConfig,
     ExperimentConfig,
     EnvConfig,
+    PlottingConfig,
     RewardConfig,
     OptimConfig,
     load_config,
@@ -188,3 +190,87 @@ def test_validate_defaults_pass():
     """Default ExperimentConfig must pass validation without errors."""
     cfg = ExperimentConfig()
     cfg.validate()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# AlgorithmConfig — defaults and validation
+# ---------------------------------------------------------------------------
+
+
+def test_algo_config_defaults():
+    a = AlgorithmConfig()
+    assert a.algo_type == "ctrl_baseline"
+    assert a.n_oracle_episodes == 100
+
+
+def test_algo_type_in_experiment_config():
+    cfg = ExperimentConfig()
+    assert cfg.algo.algo_type == "ctrl_baseline"
+
+
+def test_validate_invalid_algo_type_raises():
+    with pytest.raises(ValueError, match="algo.algo_type"):
+        _load_with_overrides({"algo": {"algo_type": "unknown_algo"}})
+
+
+def test_validate_oracle_algo_type_passes():
+    cfg = _load_with_overrides({"algo": {"algo_type": "oracle"}})
+    assert cfg.algo.algo_type == "oracle"
+
+
+def test_validate_ctrl_online_algo_type_passes():
+    cfg = _load_with_overrides({"algo": {"algo_type": "ctrl_online"}})
+    assert cfg.algo.algo_type == "ctrl_online"
+
+
+def test_validate_non_positive_n_oracle_episodes_raises():
+    with pytest.raises(ValueError, match="n_oracle_episodes"):
+        _load_with_overrides({"algo": {"n_oracle_episodes": 0}})
+
+
+# ---------------------------------------------------------------------------
+# PlottingConfig — defaults and validation
+# ---------------------------------------------------------------------------
+
+
+def test_plotting_config_defaults():
+    p = PlottingConfig()
+    assert p.enabled is True
+    assert p.figure_format == "png"
+    assert p.dpi == 150
+    assert p.n_trajectory_samples == 10
+    assert p.plot_losses is True
+    assert p.plot_gradients is True
+    assert p.plot_wealth_trajectories is True
+
+
+def test_plotting_in_experiment_config():
+    cfg = ExperimentConfig()
+    assert cfg.plotting.enabled is True
+    assert cfg.plotting.output_dir == "plots"
+
+
+def test_validate_invalid_figure_format_raises():
+    with pytest.raises(ValueError, match="figure_format"):
+        _load_with_overrides({"plotting": {"figure_format": "bmp"}})
+
+
+def test_validate_pdf_format_passes():
+    cfg = _load_with_overrides({"plotting": {"figure_format": "pdf"}})
+    assert cfg.plotting.figure_format == "pdf"
+
+
+def test_validate_non_positive_dpi_raises():
+    with pytest.raises(ValueError, match="dpi"):
+        _load_with_overrides({"plotting": {"dpi": 0}})
+
+
+def test_validate_non_positive_n_trajectory_samples_raises():
+    with pytest.raises(ValueError, match="n_trajectory_samples"):
+        _load_with_overrides({"plotting": {"n_trajectory_samples": 0}})
+
+
+def test_validate_plotting_disabled_passes():
+    """Disabled plotting with minimal settings should still pass validation."""
+    cfg = _load_with_overrides({"plotting": {"enabled": False}})
+    assert cfg.plotting.enabled is False

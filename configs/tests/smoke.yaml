@@ -35,3 +35,10 @@ eval:
 logging:
   experiment_name: smoke
   save_checkpoints: false
+
+algo:
+  algo_type: ctrl_baseline
+
+plotting:
+  enabled: false
+  n_trajectory_samples: 2

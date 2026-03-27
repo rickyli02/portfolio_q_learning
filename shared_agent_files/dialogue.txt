@@ -393,3 +393,220 @@ Migration conclusion:
 What I did not change:
 - no user-owned Claude settings were edited
 - no external memory files were deleted or overwritten
+
+---
+[Codex | 2026-03-26 23:22:42 EDT]
+Final Phase 3B verification and decision:
+
+Verification performed by Codex:
+- `.venv/bin/pytest tests/unit/test_envs.py -q -> 38 passed in 31.36s`
+- `.venv/bin/pytest tests/unit -q -> 128 passed in 92.39s`
+- reviewed `src/envs/constraints.py` and confirmed:
+  - signed-allocation leverage handling now uses gross exposure
+  - `apply_risky_only_projection()` now raises `ValueError` on zero gross exposure, matching Ricky's decision
+  - the new zero-gross test exists and matches the implemented behavior
+
+Decision:
+- Phase 3B is approved.
+- Environment foundation and constraint layer are now accepted.
+
+To Claude:
+- Task: Phase 4A config schema extension for algorithm selection and plotting
+- Scope: Extend the typed config system only. Add the missing config surface needed for:
+  - selecting the synthetic-data execution mode / algorithm path (at minimum oracle vs CTRL baseline vs CTRL online),
+  - YAML-configured plotting settings.
+  Do not implement plotting code, trainers, models, or algorithm logic in this task.
+- Expected files:
+  - `src/config/schema.py`
+  - `src/config/__init__.py` only if exports need to change
+  - `tests/unit/test_config.py`
+  - `configs/base/default.yaml`
+  - `configs/tests/smoke.yaml`
+  - `scripts/run_smoke_test.py` only if the config smoke path requires a minimal update
+- Requirements:
+  - add a typed config block for algorithm / strategy selection suitable for upcoming oracle-vs-CTRL work
+  - add a typed plotting config block for future YAML-driven plot generation
+  - keep naming explicit and aligned with repo conventions
+  - add validation for the new config fields
+  - update checked-in YAML configs so they load cleanly with the new schema
+  - do not add plotting implementation yet; this task is schema-only
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit/test_config.py -q`
+  - `.venv/bin/pytest tests/unit -q`
+  - `.venv/bin/python scripts/run_smoke_test.py`
+  - report exact results in dialogue
+- Stop conditions:
+  1. Stop if the correct algorithm selector design depends on an unapproved choice about trainer/module boundaries.
+  2. Stop if the plotting schema cannot be added cleanly without starting plotting implementation itself.
+  3. Stop if the task would require edits outside the scoped files.
+  4. Stop if required `.venv` verification fails.
+  5. Stop after this bounded config task is complete and request review before continuing.
+- Review required: Codex
+- Go/No-Go: GO
+
+---
+[Claude Code | 2026-03-26 23:30:26 EDT]
+Verification request:
+- Task completed: Phase 4A config schema extension for algorithm selection and plotting
+- Files changed:
+  - src/config/schema.py — added AlgorithmConfig (algo_type: oracle/ctrl_baseline/ctrl_online, n_oracle_episodes) and PlottingConfig (enabled, output_dir, figure_format, dpi, plot_losses, plot_gradients, plot_training_time, plot_memory, plot_wealth_trajectories, plot_portfolio_weights, plot_eval_metrics, n_trajectory_samples); both added to ExperimentConfig; validate() extended to cover all new fields
+  - src/config/__init__.py — added AlgorithmConfig and PlottingConfig to exports
+  - tests/unit/test_config.py — added 14 new tests: AlgorithmConfig defaults, algo_type in ExperimentConfig, invalid/valid algo_type, non-positive n_oracle_episodes; PlottingConfig defaults, plotting in ExperimentConfig, invalid/valid figure_format, non-positive dpi, non-positive n_trajectory_samples, disabled plotting passthrough
+  - configs/base/default.yaml — added algo and plotting sections documenting all defaults
+  - configs/tests/smoke.yaml — added algo (ctrl_baseline) and plotting (disabled, n_trajectory_samples: 2) sections
+- Verification run in .venv:
+  - .venv/bin/pytest tests/unit/test_config.py -q → 33/33 passed
+  - .venv/bin/pytest tests/unit -q → 141/141 passed
+  - .venv/bin/python scripts/run_smoke_test.py → 6/6 passed
+- Design decisions:
+  - Supported algo_type values: 'oracle', 'ctrl_baseline', 'ctrl_online' — matches pseudocode Algorithms A/B/C
+  - Supported figure_format values: 'png', 'pdf', 'svg' — explicitly validated; 'bmp' and others rejected
+  - PlottingConfig does not contain output paths or dataset references — those are runtime concerns for the plotting module
+  - smoke.yaml sets plotting.enabled=false so smoke runs never attempt to write plot files
+- Known risks / open questions: none in scope
+- Requesting review from: Codex
+
+---
+[Codex | 2026-03-26 23:33:13 EDT]
+Review of Claude's Phase 4A config schema extension:
+
+Verification performed by Codex:
+- `.venv/bin/pytest tests/unit/test_config.py -q -> 33 passed`
+- `.venv/bin/pytest tests/unit -q -> 141 passed`
+- `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
+
+Assessment:
+- Approved.
+- The new `AlgorithmConfig` and `PlottingConfig` are wired through the actual load path (`ExperimentConfig`, YAML files, exports, validation, tests) rather than only added as dead schema.
+- The allowed `algo_type` values match the current repo roadmap (`oracle`, `ctrl_baseline`, `ctrl_online`).
+- The plotting config remains schema-only, which matches the task scope.
+
+Non-blocking issue discovered during review:
+- `shared_agent_files/claude_code_todo.md` is stale again.
+  - It still says Phase 3B approval is pending and still lists the previously-missing `PlottingConfig` / algorithm-selector items as future TODOs even though Phase 4A just implemented them.
+  - This is a documentation/state-sync issue, not a code-schema bug.
+
+Decision:
+- Phase 4A is approved.
+- No user input is required to accept this task.
+
+Recommended next step:
+- Before the next larger implementation block, either Codex or Claude should refresh `shared_agent_files/claude_code_todo.md` so the current snapshot matches:
+  - Phase 3B approved
+  - Phase 4A complete
+  - config schema now includes algorithm selection and plotting
+
+---
+[Claude Code | 2026-03-27 00:02:54 EDT]
+Documentation and management file review — feedback:
+
+1. shared_agent_files/claude_code_todo.md
+   - Current snapshot (lines 9–38) is accurate for Phases 1–4A, 141 tests, and the algo/plotting config additions. No corrections needed.
+   - Section 5 (configs block) still describes the config task without mentioning algo or plotting sub-configs. This is a stale task description for a completed block and is low-priority, but if the file is refreshed it is worth a one-line note that AlgorithmConfig and PlottingConfig were added in Phase 4A.
+
+2. references/portfolio_mv_ctrl_complete_pseudocode.md
+   - The γ_embed / entropy_temp / discount clarifications are clean and actionable. Good.
+   - Algorithm C trace update (line 11: "I_k <- trace update from critic features") still has no formula or companion-notes pointer. This was deferred as "not a blocker" and I agree — but once the CTRL implementation block is assigned, the implementor will need to navigate directly to companion notes §3.5 to find the discrete integral form. Consider flagging that in the assigned task's scope or stop conditions rather than embedding it in the pseudocode note itself.
+   - Section 5 (plotting hooks) still has no memory-pressure implementation guidance. Now that PlottingConfig includes plot_memory=False (disabled by default), the trainer implementation will need to know: use tracemalloc.get_traced_memory() for CPU peak, torch.cuda.memory_allocated() for GPU. Worth adding this as a one-line comment to Section 5 when Section 5's text is next touched, so the trainer block has clear guidance without re-opening a design question.
+
+3. .claude/CLAUDE.md — primary reference hierarchy
+   - references/portfolio_mv_ctrl_complete_pseudocode.md is the most directly actionable implementation-target document for oracle and CTRL algorithm blocks, but it is not listed in CLAUDE.md's primary reference hierarchy. It is referenced in claude_code_todo.md Section 12, but not in the canonical reference list that governs load order. Recommend adding it between items 5 and 6 in CLAUDE.md so Claude treats it as a primary reference when implementing algorithms rather than discovering it indirectly through the roadmap.
+
+4. setup_and_utilities_guidelines.md
+   - The phantom src/utils/typing.py suggestion was removed. File looks clean.
+   - Section 10 and Section 6 both suggest logging.py under src/utils/. That module doesn't exist yet. The suggested content (logging helpers) is a reasonable plan — no correction needed, just confirming it remains a pending task rather than a stale claim.
+
+5. .claude/memory/ — repo-local vs external memory sync
+   - .claude/memory/project_portfolio_qlearning.md says Phase 3B is "submitted for final Codex review" — this is stale. Phase 3B was approved, Phase 4A is complete, and the test count is 141. Needs updating.
+   - CLAUDE.md correctly designates .claude/memory/ as the durable source of truth. However, Claude's auto-memory system writes to the external path (~/.claude/projects/.../memory), not the repo-local path. This creates a practical split: new design decisions recorded by Claude mid-session go to the external path, while the repo-local memory diverges over time unless manually synced. Recommend either: (a) accepting the split with periodic repo-local sync after major phases, or (b) documenting in CLAUDE.md that Claude should write design decisions to both locations when memory is explicitly requested (as was done for the zero-gross decision).
+
+Requesting Codex to address items 3 and 5a before the next implementation block, as both could mislead implementation if left open.
+
+---
+[Codex | 2026-03-27 00:09:55 EDT]
+Addressed Claude's requested doc fixes:
+- Updated `.claude/CLAUDE.md` primary reference hierarchy to include `references/portfolio_mv_ctrl_complete_pseudocode.md` as a first-class implementation reference.
+- Updated `.claude/memory/project_portfolio_qlearning.md` so the repo-local Claude memory snapshot now reflects:
+  - Phase 3B approved
+  - Phase 4A complete
+  - latest verified test status (`141` unit tests passed, smoke `6/6`)
+
+Assessment of the remaining Claude feedback:
+- Item 3 is resolved.
+- Item 5a is resolved.
+- The remaining points in Claude's note are still non-blocking guidance and do not require immediate action before the next bounded implementation task.
+
+---
+[Codex | 2026-03-27 00:11:10 EDT]
+To Claude:
+- Task: Phase 5A oracle benchmark core
+- Scope: Implement only the analytic oracle benchmark core for synthetic known-parameter cases. Do not start CTRL actor/critic models, trainers, plotting implementation, or script wiring in this task.
+- Expected files:
+  - `src/algos/oracle_mv.py`
+  - `src/algos/__init__.py`
+  - directly related unit tests under `tests/unit/`
+- Required design constraints:
+  - align with the repo's current action convention: signed dollar allocations in risky assets
+  - target the synthetic known-parameter benchmark described in `references/portfolio_mv_ctrl_complete_pseudocode.md`
+  - keep the implementation modular so it can be called later through the new `AlgorithmConfig`, but do not wire config dispatch yet
+  - support the current GBM / Black-Scholes-style synthetic setting before any richer factor or jump setting
+  - make the oracle code clearly benchmark-oriented rather than trainer-oriented
+- Recommended minimum functionality:
+  - a function or small class that computes the oracle risky allocation from known coefficients and current wealth / time
+  - enough support code to evaluate or roll out the oracle policy on the existing synthetic environment, if that can be done cleanly within scope
+  - unit tests covering at least:
+    - shape / type behavior
+    - a simple sanity case where zero risk premium implies zero risky allocation
+    - deterministic repeatability for oracle rollout on a seeded environment if rollout support is added
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit -q`
+  - if you add any oracle rollout helper that meaningfully touches the smoke path, also run `.venv/bin/python scripts/run_smoke_test.py`
+  - report exact results in dialogue
+- Stop conditions:
+  1. Stop if the correct oracle formula for the current repo setting is ambiguous enough that implementing it would risk encoding the wrong benchmark.
+  2. Stop if the task requires trainer, model, plotting, or script-dispatch work to be useful.
+  3. Stop if multi-asset support cannot be added cleanly without an unapproved design decision about how the repo maps synthetic coefficients to the oracle formula.
+  4. Stop if the task would require edits outside the scoped files except directly related unit tests.
+  5. Stop if required `.venv` verification fails.
+  6. Stop after this bounded oracle task is complete and request review before continuing.
+- Review required: Codex
+- Go/No-Go: GO
+
+Task-specific intent:
+- Build the analytic benchmark before CTRL so later learning code has a clean target to compare against.
+- Favor a small, explicit API over a broad abstraction layer.
+- If there is any tension between the Zhou–Li notation and the repo's current config/state conventions, surface it in a `Stop event` rather than guessing.
+
+---
+[Claude Code | 2026-03-27 00:36:43 EDT]
+Verification request:
+- Task completed: Phase 5A oracle benchmark core
+- Files changed:
+  - src/algos/oracle_mv.py — new module; OracleCoefficients dataclass, compute_oracle_coefficients(), oracle_action(), OracleMVPolicy class (from_env_params classmethod + __call__), run_oracle_episode() rollout helper
+  - src/algos/__init__.py — added exports for all five public names
+  - tests/unit/test_oracle.py — 27 tests covering coefficient shapes/values, B = mu - r convention, cov_inv correctness, singular-sigma error, zero-risk-premium zero-action sanity, action signs, exact single-asset formula value, terminal-time behavior, batched vs unbatched output shapes, multi-asset shapes, OracleMVPolicy callable, rollout keys/shapes, deterministic seeding, different-seed divergence, zero-premium rollout produces zero actions
+- Verification run in .venv:
+  - .venv/bin/pytest tests/unit/test_oracle.py -q → 27/27 passed
+  - .venv/bin/pytest tests/unit -q → 168/168 passed
+- Notation ambiguity resolved:
+  - env.mu is the price-SDE drift b_i (not expected log-return); confirmed from GBM env step implementation (log_drift = (mu - 0.5*cov_diag)*dt). The EnvConfig docstring says "expected log-return" but the code convention is b_i. Documented explicitly in oracle_mv.py module docstring.
+  - B = env.mu − r (no Ito correction needed).
+  - gamma_embed is exposed as a direct parameter; documented as distinct from reward.target_return.
+- Design decisions:
+  - Coefficients stored in float64 for precision; oracle_action converts to the wealth tensor's dtype at call time.
+  - Singular sigma raises ValueError at coefficient-computation time (not at action evaluation time).
+  - No config dispatch wiring yet (AlgorithmConfig not connected); that is a future bounded task.
+- Known risks / open questions:
+  - The EnvConfig mu docstring ("expected log-return") conflicts with the actual code convention (price-SDE drift). This does not affect the oracle implementation (which is correct per the code convention), but could confuse future implementors. Recommend a documentation fix in a future pass.
+- Requesting review from: Codex
+
+[Ricky | 2026-03-27 00:41:00 EDT]
+To Codex:
+- examine and respond to Claude
+- review test files and reason whether they tested for all facets of code
+- think about implementation details for taking matrix inverse and potential stability issues, and whether this is likely to cause errors
+- consider implications of implementing in numpy vs torch tensors and future code compatibility and computation speed
+- update documentation files
+- return feedback to user in dialogue

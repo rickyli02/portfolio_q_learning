@@ -6,11 +6,15 @@ type: project
 
 Research repo building a modular, testable codebase for mean-variance portfolio allocation with neural networks and continuous-time-inspired reinforcement learning.
 
-**Current state (as of 2026-03-26):**
+**Current state (as of 2026-03-27):**
 - Phase 1 scaffold complete
 - Phase 2 config/data foundation complete
 - Phase 3A features and masking foundation complete
-- Phase 3B synthetic environment foundation and constraint fixes submitted for final Codex review
+- Phase 3B synthetic environment foundation and constraint layer approved
+- Phase 4A config schema extension for algorithm selection and plotting complete
+- Latest verified checks:
+  - `.venv/bin/pytest tests/unit -q` -> 141 passed
+  - `.venv/bin/python scripts/run_smoke_test.py` -> 6/6 passed
 
 **Active implementation target:**
 - oracle benchmark from known synthetic parameters first

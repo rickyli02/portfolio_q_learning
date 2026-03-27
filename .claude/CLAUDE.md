@@ -13,8 +13,9 @@ Use sources in this order:
 3. `shared_agent_files/claude_code_todo.md`
 4. `shared_agent_files/setup_and_utilities_guidelines.md`
 5. `references/portfolio_mv_papers_algorithm_summary.md`
-6. `references/portfolio_mv_papers_companion_implementation_notes.md`
-7. `references/papers/` only when the markdown references are insufficient
+6. `references/portfolio_mv_ctrl_complete_pseudocode.md`
+7. `references/portfolio_mv_papers_companion_implementation_notes.md`
+8. `references/papers/` only when the markdown references are insufficient
 
 Do not repeatedly re-read original papers when the markdown references already contain the needed detail.
 

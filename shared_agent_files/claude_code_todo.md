@@ -14,21 +14,19 @@ As of 2026-03-26:
 - Phase 2 config/data foundation exists.
 - Phase 2 bugfix cleanup is complete.
 - Phase 3A features and masking foundation under `src/features/` is complete and verified.
-- Phase 3B environment foundation exists.
-- Signed-allocation constraint bugs were fixed and verified in `.venv`.
-- Final Phase 3B approval is still pending one last zero-gross `apply_risky_only_projection()` policy update from dialogue review.
-- Latest Codex verification with current env code is:
-  - `.venv/bin/pytest tests/unit -q -> 127 passed`
+- Phase 3B environment foundation and constraint layer are approved.
+- Phase 4A config schema extension for algorithm selection and plotting is complete and verified.
+- Latest Codex verification with current repo state is:
+  - `.venv/bin/pytest tests/unit -q -> 141 passed`
   - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
   - Huang–Jia–Zhou (2022) / 2025 practical online improvements after baseline stability
 - Wang–Zhou (2019/2020) remains a mathematical and derivational reference, not a required implementation layer.
-- Plotting and visualization are required implementation tasks and should be configurable from YAML.
+- Plotting and visualization remain required implementation tasks, and the config schema now includes `PlottingConfig` for YAML-driven plotting preferences.
+- The config schema now also includes algorithm selection via `AlgorithmConfig`.
 - Pending follow-up TODO items identified by review and not yet implemented:
-  - add `PlottingConfig` to the config schema when plotting implementation begins
-  - add an algorithm / strategy selector config field when oracle-vs-CTRL wiring begins
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
 - Phase 2 planning notes were archived to:

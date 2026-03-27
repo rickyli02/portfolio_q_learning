@@ -148,6 +148,91 @@ class OptimConfig:
 
 
 @dataclass
+class AlgorithmConfig:
+    """Algorithm / strategy selection settings.
+
+    Controls which learning or execution algorithm is instantiated at runtime.
+    Only schema-level selection is handled here; implementation lives in the
+    algorithm modules.
+
+    Supported ``algo_type`` values:
+
+    - ``'oracle'``: closed-form optimal policy from known synthetic parameters
+      (Zhou–Li 2000).  Requires a synthetic environment with known coefficients.
+    - ``'ctrl_baseline'``: theorem-aligned CTRL offline baseline
+      (Huang–Jia–Zhou 2025).
+    - ``'ctrl_online'``: practical online CTRL with 2022/2025 improvements
+      (Huang–Jia–Zhou 2022 + 2025 E-companion).
+    """
+
+    algo_type: str = "ctrl_baseline"
+    """Algorithm to run.  Supported: ``'oracle'``, ``'ctrl_baseline'``,
+    ``'ctrl_online'``."""
+
+    n_oracle_episodes: int = 100
+    """Number of evaluation episodes for the oracle policy (``algo_type='oracle'``
+    only).  Ignored for learned-policy algorithms."""
+
+
+@dataclass
+class PlottingConfig:
+    """YAML-configurable plotting settings.
+
+    Controls which plots are generated and how they are saved.  Plotting
+    implementation is handled by a separate module (``src/eval/plots.py``);
+    this config block only records user preferences.
+
+    Memory-pressure capture uses ``tracemalloc`` for CPU peak and
+    ``torch.cuda.memory_allocated`` for GPU when ``plot_memory`` is enabled.
+    """
+
+    enabled: bool = True
+    """Master switch.  If False, no plots are written."""
+
+    output_dir: str = "plots"
+    """Directory (relative to the run output root) to write plot files."""
+
+    figure_format: str = "png"
+    """Output format for saved figures.  Supported: ``'png'``, ``'pdf'``,
+    ``'svg'``."""
+
+    dpi: int = 150
+    """Dots per inch for raster formats (``'png'``).  Ignored for vector
+    formats."""
+
+    # --- training diagnostics ---
+
+    plot_losses: bool = True
+    """Plot critic and actor loss curves over training episodes."""
+
+    plot_gradients: bool = True
+    """Plot gradient norms over training episodes."""
+
+    plot_training_time: bool = False
+    """Plot wall-clock training time per episode."""
+
+    plot_memory: bool = False
+    """Plot memory pressure (CPU peak via ``tracemalloc``; GPU via
+    ``torch.cuda`` when available)."""
+
+    # --- wealth and portfolio plots ---
+
+    plot_wealth_trajectories: bool = True
+    """Plot wealth trajectories comparing the learned policy against the oracle
+    and/or baseline comparators."""
+
+    plot_portfolio_weights: bool = True
+    """Plot portfolio weight / dollar-allocation paths over time."""
+
+    plot_eval_metrics: bool = True
+    """Overlay evaluation metrics (e.g. Sharpe ratio, MV objective) on wealth
+    trajectory plots."""
+
+    n_trajectory_samples: int = 10
+    """Number of sample trajectories to display on wealth and weight plots."""
+
+
+@dataclass
 class EvalConfig:
     """Evaluation settings."""
 
@@ -195,6 +280,8 @@ class ExperimentConfig:
     optim: OptimConfig = field(default_factory=OptimConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    algo: AlgorithmConfig = field(default_factory=AlgorithmConfig)
+    plotting: PlottingConfig = field(default_factory=PlottingConfig)
 
     def validate(self) -> None:
         """Raise ``ValueError`` if any field holds an obviously invalid value.
@@ -247,6 +334,34 @@ class ExperimentConfig:
             raise ValueError(
                 f"optim.replay_buffer_size must be >= 1, "
                 f"got {self.optim.replay_buffer_size}"
+            )
+        # --- algo ---
+        _valid_algo_types = {"oracle", "ctrl_baseline", "ctrl_online"}
+        if self.algo.algo_type not in _valid_algo_types:
+            raise ValueError(
+                f"algo.algo_type must be one of {sorted(_valid_algo_types)}, "
+                f"got '{self.algo.algo_type}'"
+            )
+        if self.algo.n_oracle_episodes < 1:
+            raise ValueError(
+                f"algo.n_oracle_episodes must be >= 1, "
+                f"got {self.algo.n_oracle_episodes}"
+            )
+        # --- plotting ---
+        _valid_formats = {"png", "pdf", "svg"}
+        if self.plotting.figure_format not in _valid_formats:
+            raise ValueError(
+                f"plotting.figure_format must be one of {sorted(_valid_formats)}, "
+                f"got '{self.plotting.figure_format}'"
+            )
+        if self.plotting.dpi < 1:
+            raise ValueError(
+                f"plotting.dpi must be >= 1, got {self.plotting.dpi}"
+            )
+        if self.plotting.n_trajectory_samples < 1:
+            raise ValueError(
+                f"plotting.n_trajectory_samples must be >= 1, "
+                f"got {self.plotting.n_trajectory_samples}"
             )
 
 
