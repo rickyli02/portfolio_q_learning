@@ -23,14 +23,17 @@ As of 2026-03-27:
 - Phase 8A CTRL objective and loss-primitive foundation is approved.
 - Phase 8B CTRL gradient-tracked re-evaluation foundation is approved.
 - Phase 8C CTRL scalar loss assembly foundation is approved.
-- Phase 9A CTRL single-trajectory trainer step foundation is implemented and under bounded review cleanup.
+- Phase 9A CTRL single-trajectory trainer step foundation is approved.
+- Phase 9B CTRL fixed-length trainer-run foundation is approved.
+- Phase 10A CTRL outer-loop w update primitive is approved.
+- Phase 10B CTRL single outer-iteration foundation is approved.
 - Latest verified outputs with current repo state are:
   - model-focused verification:
     - `tests/unit/test_models.py -q -> 49 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 343 passed`
+    - `tests/unit -q -> 386 passed`
   - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 24 passed`
+    - `tests/unit/test_ctrl_trainer.py -q -> 67 passed`
   - current smoke verification:
     - `scripts/run_smoke_test.py -> 7/7 passed`
   - current long-verification artifacts:
@@ -40,7 +43,7 @@ As of 2026-03-27:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 9A CTRL single-trajectory trainer step foundation follow-up cleanup
+  - Phase 10C CTRL fixed-length outer-loop schedule foundation
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -51,7 +54,7 @@ As of 2026-03-27:
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
-  - after Phase 9A approval, normalize trainer naming/API boundaries before broader loop infrastructure hardens
+  - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`

@@ -373,14 +373,18 @@ Implemented and verified so far:
 - actor / critic model interfaces under `src/models/`
 - CTRL rollout collection and deterministic policy-evaluation scaffolding
 - CTRL objective, re-evaluation, and scalar loss plumbing under `src/algos/ctrl.py`
-- initial single-trajectory CTRL trainer-step slice under `src/train/`
+- initial trainer-side CTRL slices under `src/train/`, including:
+  - single-trajectory update step
+  - fixed-length inner trainer run
+  - single outer `w` update
+  - single combined outer iteration
 - smoke and long-verification tooling under `scripts/`
-- focused unit-test coverage, with the current unit suite at `343 passed`
+- focused unit-test coverage, with the current unit suite at `386 passed`
 
 Not yet implemented:
 
-- trainer loops for CTRL and related baselines beyond the first single-step slice
-- outer-loop `w` update logic and scheduling
+- trainer loops for CTRL and related baselines beyond the current bounded trainer helpers
+- repeated outer-loop scheduling beyond the current single outer-iteration slice
 - offline / online trainers
 - evaluation and backtesting baselines
 - plotting and reporting utilities
@@ -397,7 +401,7 @@ If your local `.venv` exposes only `python3` rather than `python`, use whichever
 .venv/bin/python3 scripts/run_smoke_test.py
 ```
 
-Relative to the reference notes, the repository now covers the paper-aligned environment/model/oracle foundation, the approved CTRL math plumbing, and the first narrow trainer-side integration slice, but it still stops short of full trainer-loop implementation of the papers' learning procedures.
+Relative to the reference notes, the repository now covers the paper-aligned environment/model/oracle foundation, the approved CTRL math plumbing, and the first bounded trainer-side integration slices, but it still stops short of full trainer-loop implementation of the papers' learning procedures.
 
 ---
 

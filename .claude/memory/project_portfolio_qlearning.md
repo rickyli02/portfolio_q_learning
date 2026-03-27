@@ -16,12 +16,16 @@ Last updated: 2026-03-27
 - Phase 8A CTRL objective and loss-primitive foundation: approved
 - Phase 8B CTRL gradient-tracked re-evaluation foundation: approved
 - Phase 8C CTRL scalar loss assembly foundation: approved
-- Phase 9A CTRL single-trajectory trainer step foundation: implemented, pending tiny review cleanup
+- Phase 9A CTRL single-trajectory trainer step foundation: approved
+- Phase 9B CTRL fixed-length trainer-run foundation: approved
+- Phase 10A CTRL outer-loop w update primitive: approved
+- Phase 10B CTRL single outer-iteration foundation: approved
+- Active bounded task: Phase 10C CTRL fixed-length outer-loop schedule foundation
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `343 passed`
-- `tests/unit/test_ctrl_trainer.py -q` has reached `24 passed`
+- `tests/unit -q` has reached `386 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `67 passed`
 - `scripts/run_smoke_test.py` has reached `7/7 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - subprocess-isolated import timing normalized after recreating `.venv` locally:
@@ -35,8 +39,8 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - close the bounded Phase 9A review cleanup
-  - keep the trainer layer limited to a single-trajectory step before any broader loop/checkpoint/logging work
+  - extend the approved single outer iteration into a fixed-length outer-loop schedule
+  - keep the trainer layer bounded and avoid opening full trainer/checkpoint/logging infrastructure yet
 
 ## Stable decisions
 

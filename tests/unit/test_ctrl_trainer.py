@@ -1,4 +1,4 @@
-"""Unit tests for src/train/ — Phase 9A single-trajectory step, 9B fixed-length run, 10A w update."""
+"""Unit tests for src/train/ — Phases 9A/9B (step/run), 10A (w update), 10B (outer iter), 10C (outer loop)."""
 
 import math
 
@@ -763,3 +763,160 @@ def test_phase10b_public_api_imports():
     from src.train import CTRLOuterIterResult, ctrl_outer_iter
     assert CTRLOuterIterResult is not None
     assert callable(ctrl_outer_iter)
+
+
+# ---------------------------------------------------------------------------
+# Phase 10C: ctrl_outer_loop / CTRLOuterLoopResult
+# ---------------------------------------------------------------------------
+
+from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
+
+
+def _make_outer_loop_args(
+    n_outer_iters: int = 2,
+    n_updates: int = 3,
+    w_init: float = 1.0,
+    target_return_z: float = 1.0,
+    w_step_size: float = 0.1,
+    entropy_temp: float = 0.1,
+    base_seed: int | None = 0,
+    w_min: float | None = None,
+    w_max: float | None = None,
+) -> dict:
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env()
+    actor_opt, critic_opt = _make_optimizers(actor, critic)
+    return dict(
+        actor=actor, critic=critic, env=env,
+        actor_optimizer=actor_opt, critic_optimizer=critic_opt,
+        w_init=w_init, target_return_z=target_return_z,
+        w_step_size=w_step_size, n_outer_iters=n_outer_iters,
+        n_updates=n_updates, entropy_temp=entropy_temp,
+        base_seed=base_seed, w_min=w_min, w_max=w_max,
+    )
+
+
+def _run_outer_loop(**kwargs) -> CTRLOuterLoopResult:
+    args = _make_outer_loop_args(**kwargs)
+    return ctrl_outer_loop(**args)
+
+
+# --- invalid n_outer_iters ---
+
+def test_outer_loop_invalid_zero_raises():
+    args = _make_outer_loop_args()
+    args["n_outer_iters"] = 0
+    with pytest.raises(ValueError, match="n_outer_iters"):
+        ctrl_outer_loop(**args)
+
+
+def test_outer_loop_invalid_negative_raises():
+    args = _make_outer_loop_args()
+    args["n_outer_iters"] = -1
+    with pytest.raises(ValueError, match="n_outer_iters"):
+        ctrl_outer_loop(**args)
+
+
+# --- result structure ---
+
+def test_outer_loop_returns_dataclass():
+    result = _run_outer_loop()
+    assert isinstance(result, CTRLOuterLoopResult)
+
+
+def test_outer_loop_iters_length():
+    n = 3
+    result = _run_outer_loop(n_outer_iters=n)
+    assert len(result.iters) == n
+
+
+def test_outer_loop_n_outer_iters_stored():
+    n = 3
+    result = _run_outer_loop(n_outer_iters=n)
+    assert result.n_outer_iters == n
+
+
+def test_outer_loop_final_iter_is_last():
+    result = _run_outer_loop(n_outer_iters=2)
+    assert result.final_iter is result.iters[-1]
+
+
+def test_outer_loop_w_init_stored():
+    result = _run_outer_loop(w_init=1.1)
+    assert result.w_init == pytest.approx(1.1)
+
+
+def test_outer_loop_w_final_matches_last_w_next():
+    result = _run_outer_loop(n_outer_iters=2)
+    assert result.w_final == pytest.approx(result.iters[-1].w_next)
+
+
+def test_outer_loop_single_iter():
+    result = _run_outer_loop(n_outer_iters=1)
+    assert result.n_outer_iters == 1
+    assert len(result.iters) == 1
+
+
+def test_outer_loop_iters_are_outer_iter_results():
+    result = _run_outer_loop(n_outer_iters=2)
+    for it in result.iters:
+        assert isinstance(it, CTRLOuterIterResult)
+
+
+# --- w threading ---
+
+def test_outer_loop_w_threaded_across_iters():
+    """Each iteration's w_prev must equal the previous iteration's w_next."""
+    result = _run_outer_loop(n_outer_iters=3)
+    assert result.iters[0].w_prev == pytest.approx(result.w_init)
+    for j in range(1, 3):
+        assert result.iters[j].w_prev == pytest.approx(result.iters[j - 1].w_next)
+
+
+def test_outer_loop_w_first_iter_prev_is_w_init():
+    w_init = 1.07
+    result = _run_outer_loop(w_init=w_init, n_outer_iters=2)
+    assert result.iters[0].w_prev == pytest.approx(w_init)
+
+
+# --- reproducibility ---
+
+def test_outer_loop_reproducible_with_base_seed():
+    """Fresh identical instances + same base_seed → same w evolution."""
+    def _fresh(seed: int) -> CTRLOuterLoopResult:
+        return ctrl_outer_loop(**_make_outer_loop_args(
+            n_outer_iters=2, n_updates=2, base_seed=seed,
+        ))
+
+    r1 = _fresh(seed=11)
+    r2 = _fresh(seed=11)
+    assert r1.w_final == pytest.approx(r2.w_final)
+    for j in range(2):
+        assert r1.iters[j].w_next == pytest.approx(r2.iters[j].w_next)
+
+
+# --- projection propagation ---
+
+def test_outer_loop_projection_upper_propagates():
+    """w_max bound must be respected across all outer iterations."""
+    w_max = 1.5
+    result = _run_outer_loop(n_outer_iters=2, w_max=w_max)
+    for it in result.iters:
+        assert it.w_next <= w_max + 1e-9
+
+
+def test_outer_loop_projection_lower_propagates():
+    """w_min bound must be respected across all outer iterations."""
+    w_min = 0.5
+    result = _run_outer_loop(n_outer_iters=2, w_min=w_min)
+    for it in result.iters:
+        assert it.w_next >= w_min - 1e-9
+
+
+# --- public API (Phase 10C) ---
+
+def test_phase10c_public_api_imports():
+    from src.train import CTRLOuterLoopResult, ctrl_outer_loop
+    assert CTRLOuterLoopResult is not None
+    assert callable(ctrl_outer_loop)
