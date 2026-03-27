@@ -30,12 +30,27 @@ Create a local virtual environment from the repository root:
 
 ```bash
 python3.11 -m venv .venv
+touch .venv/.noindex
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 If `python3.11` is not available, use the closest supported version explicitly approved for the repo.
+If the created venv exposes only `python3` rather than `python`, use `python3 -m pip ...` and `python3 -m pytest ...`. Do not assume the venv always creates every convenience symlink.
+
+### iCloud / file-sync rule for `.venv`
+If the repository lives inside an iCloud-backed path, treat `.venv/` as a local-only working directory, not as synced project content.
+
+Reason:
+- cloud file-provider latency can make Python imports pathologically slow,
+- large package trees such as `torch` and `numpy` are especially sensitive to filesystem overhead,
+- the environment should be reproducible from `requirements.txt`, not preserved via sync.
+
+Required practice:
+- create `.venv/` locally from the repo root,
+- add `.venv/.noindex` immediately after creation so macOS indexing and iCloud syncing do not treat it like normal document content,
+- keep `.venv/` out of git and out of any expected project handoff workflow.
 
 ### Environment rules
 - `.venv/` must be ignored by git.

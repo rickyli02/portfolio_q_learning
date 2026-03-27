@@ -120,8 +120,9 @@ class GaussianActor(ActorBase):
     def variance(self, t: float | torch.Tensor) -> torch.Tensor:
         """Scalar variance φ₂·e^{φ₃·(T−t)} at time t.
 
-        THEOREM-BACKED: time-varying Gaussian variance from the CTRL
-        parameterisation.
+        The time-varying form φ₂ e^{φ₃(T-t)} is theorem-aligned (paper §3.6).
+        This implementation uses a scalar φ₂ (isotropic) and a freely learned
+        φ₃; both are repo scaffold choices relative to the full paper form.
 
         Args:
             t: Current time, scalar or tensor.
@@ -144,8 +145,8 @@ class GaussianActor(ActorBase):
     ) -> torch.Tensor:
         """Deterministic execution policy û = −φ₁·(x−w).
 
-        THEOREM-BACKED: The mean of the exploratory Gaussian is the
-        deterministic optimal action in the CTRL formulation.
+        The mean form −φ₁·(x−w) is theorem-aligned (paper §3.6).
+        Used as the deterministic execution policy at evaluation time.
 
         Args:
             t: Unused for mean computation; accepted for interface consistency.

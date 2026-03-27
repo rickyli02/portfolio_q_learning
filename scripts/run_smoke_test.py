@@ -26,6 +26,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 def _check(label: str, fn):
     """Run *fn()* and print pass/fail.  Returns True on success."""
+    print(f"  [RUN ] {label}", flush=True)
     try:
         fn()
         print(f"  [PASS] {label}")
@@ -201,6 +202,46 @@ def main(config_path: str) -> int:
         )
 
     results.append(_check("GBM environment step + risk-free sanity", _gbm_env))
+
+    # ------------------------------------------------------------------
+    # 7. CTRL trajectory and deterministic evaluation
+    # ------------------------------------------------------------------
+    def _ctrl():
+        import torch
+        from src.algos.ctrl import collect_ctrl_trajectory, evaluate_ctrl_deterministic
+        from src.envs.gbm_env import GBMPortfolioEnv
+        from src.models.gaussian_actor import GaussianActor
+
+        env = GBMPortfolioEnv(cfg.env)
+        n_risky = cfg.env.assets.n_risky
+        actor = GaussianActor(n_risky=n_risky, horizon=cfg.env.horizon)
+        n = cfg.env.n_steps
+        w = cfg.env.initial_wealth
+
+        # Stochastic behavior-policy rollout
+        traj = collect_ctrl_trajectory(actor, env, w=w, seed=cfg.seed)
+        assert traj.times.shape == (n,), f"times shape: {traj.times.shape}"
+        assert traj.wealth_path.shape == (n + 1,), f"wealth_path shape: {traj.wealth_path.shape}"
+        assert traj.actions.shape == (n, n_risky), f"actions shape: {traj.actions.shape}"
+        assert traj.log_probs.shape == (n,), f"log_probs shape: {traj.log_probs.shape}"
+        assert traj.entropy_terms.shape == (n,), f"entropy_terms shape: {traj.entropy_terms.shape}"
+        assert torch.isfinite(traj.log_probs).all(), "log_probs contain non-finite values"
+        assert torch.isfinite(traj.entropy_terms).all(), "entropy_terms contain non-finite values"
+        assert abs(traj.terminal_wealth.item() - traj.wealth_path[-1].item()) < 1e-6, (
+            f"terminal_wealth mismatch: {traj.terminal_wealth.item()} vs {traj.wealth_path[-1].item()}"
+        )
+
+        # Deterministic execution-policy evaluation
+        result = evaluate_ctrl_deterministic(actor, env, w=w, seed=cfg.seed)
+        assert result.times.shape == (n,), f"eval times shape: {result.times.shape}"
+        assert result.wealth_path.shape == (n + 1,), f"eval wealth_path shape: {result.wealth_path.shape}"
+        assert result.actions.shape == (n, n_risky), f"eval actions shape: {result.actions.shape}"
+        assert torch.isfinite(result.wealth_path).all(), "eval wealth_path contains non-finite values"
+        assert abs(result.terminal_wealth.item() - result.wealth_path[-1].item()) < 1e-6, (
+            f"eval terminal_wealth mismatch: {result.terminal_wealth.item()} vs {result.wealth_path[-1].item()}"
+        )
+
+    results.append(_check("CTRL trajectory + deterministic eval", _ctrl))
 
     # ------------------------------------------------------------------
     # Summary

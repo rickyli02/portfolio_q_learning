@@ -339,6 +339,22 @@ General workflow goals:
 
 Detailed agent-specific instructions, coding guidelines, and task templates will be added separately once the project goals and structure are fully settled.
 
+### Environment note
+
+If you keep this repository in an iCloud-backed location, treat `.venv/` as a local-only environment directory.
+
+Recommended pattern:
+
+```bash
+python3.11 -m venv .venv
+touch .venv/.noindex
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+The goal is to keep package binaries and Python import trees out of normal cloud-sync/indexing paths. The environment should be recreated from `requirements.txt`, not relied on as synced project state.
+
 ---
 
 ## Status

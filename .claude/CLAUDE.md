@@ -118,11 +118,18 @@ Claude must stop and post a `Stop event` when any of the following occurs:
 
 - Prefer simple single-purpose commands over long chained shell commands.
 - Avoid compound commands like `ls ... && echo ... && ls ...` when separate commands or a helper script will do.
-- Run project verification from `.venv`, for example:
+- Run project verification from `.venv`.
+- If the local venv exposes only `.venv/bin/python3` rather than `.venv/bin/python`, use whichever interpreter path actually exists.
+- Prefer interpreter-invoked module commands over standalone entrypoint scripts when the venv layout differs across machines.
+- Examples:
 
 ```bash
-.venv/bin/pytest
+.venv/bin/python -m pytest
 .venv/bin/python scripts/run_smoke_test.py
+
+# or, on machines where only python3 exists in the venv:
+.venv/bin/python3 -m pytest
+.venv/bin/python3 scripts/run_smoke_test.py
 ```
 
 ## Coordination
