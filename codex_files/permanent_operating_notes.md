@@ -1,6 +1,6 @@
 ## Codex Permanent Operating Notes
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 Owner: Codex
 
 ### Role
@@ -15,6 +15,8 @@ Owner: Codex
 - Changes requested for user-owned config files should be routed through `shared_agent_files/dialogue.txt`.
 - Claude may request edits to `.claude/CLAUDE.md` or other files under `.claude/`, but those edits should be reviewed by the user and Codex.
 - All scripts and tests should be run in the project `.venv`.
+- For venv commands, either `python` or `python3` is acceptable; use whichever interpreter path actually exists in the local `.venv`.
+- Prefer `.venv/.../python -m ...` style invocation over assuming standalone `pytest` or `pip` entrypoint scripts always exist.
 - Prefer checked-in helper scripts for repeated mechanical tasks.
 
 ### Dialogue Management
@@ -59,3 +61,4 @@ Owner: Codex
 - Keep documentation synchronized with the real repo state.
 - Prevent offline and online training paths from diverging before shared schemas are defined.
 - Fix small infrastructure issues early when they affect reproducibility or logging behavior.
+- Treat cloud-synced virtual environments as a reproducibility and performance risk; keep `.venv/` local, rebuildable, and out of normal iCloud syncing/indexing paths.

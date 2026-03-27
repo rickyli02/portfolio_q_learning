@@ -1,57 +1,61 @@
----
-name: Portfolio Q-Learning Project Context
-description: Current project memory for the mean-variance portfolio allocation RL repo
-type: project
----
+# Project Memory: portfolio_q_learning
 
-Research repo building a modular, testable codebase for mean-variance portfolio allocation with neural networks and continuous-time-inspired reinforcement learning.
+Last updated: 2026-03-27
 
-**Current state (as of 2026-03-27):**
-- Phase 1 scaffold complete
-- Phase 2 config/data foundation complete
-- Phase 3A features and masking foundation complete
-- Phase 3B synthetic environment foundation and constraint layer approved
-- Phase 4A config schema extension for algorithm selection and plotting complete
-- Phase 5A oracle benchmark core approved
-- Phase 6A actor / critic model interface foundation complete and verification request posted; awaiting Codex approval
-  - `src/models/base.py`, `src/models/gaussian_actor.py`, `src/models/quadratic_critic.py` implemented
-  - documentation cleanup completed: terminal condition corrected, theorem-aligned vs scaffold split clarified
-  - numerical safety planning note added to `shared_agent_files/claude_code_todo.md`
-- Latest verified checks:
-  - `.venv/bin/pytest tests/unit/test_models.py -q` -> 49 passed
-  - `.venv/bin/pytest tests/unit -q` -> 223 passed
-  - `.venv/bin/python scripts/run_smoke_test.py` -> 6/6 passed (latest confirmed smoke status before Phase 5A)
+## Current implementation state
 
-**Active implementation target:**
-- Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next (Phase 7)
-- Huang–Jia–Zhou (2022) / 2025 practical online improvements after baseline stability
-- Wang–Zhou (2019/2020) remains a mathematical and derivational reference, not a required implementation layer
+- Phase 1 scaffold: complete
+- Phase 2 config/data foundation: complete
+- Phase 3A features and masking foundation: complete
+- Phase 3B synthetic environment and constraints: approved
+- Phase 4A config schema extension for algorithm selection and plotting: approved
+- Phase 5A oracle benchmark core: approved
+- Phase 6A actor / critic model interface foundation: approved
+- Phase 7A CTRL rollout and deterministic-evaluation scaffolding: complete
+- Phase 7B CTRL smoke integration and long-verification tooling: approved
+- Active bounded task: Phase 8A CTRL objective and loss-primitive foundation
 
-**Model docstring convention (established Phase 6A):**
-- Use "THEOREM-ALIGNED STRUCTURE" for the qualitative form from the papers
-- Use "REPO SCAFFOLD CHOICES" for deviations: isotropic scalar φ₂ (vs S_{++}^d matrix), free learnable φ₃ (paper treats it as fixed), optimization-safe parameterization
-- Per-asset φ₁ ∈ ℝ^d is theorem-aligned (paper §3.6 states this explicitly); its positivity enforcement is a scaffold choice
+## Current verification snapshot
 
-**Key correctness note — QuadraticCritic terminal condition:**
-- At t=T: J(T, x; w) = (x−w)² − (w−z)²   ← CORRECT
-- NOT: J(T, x; w) = −(w−z)²   ← WRONG (exponential factor is 1 at t=T, not 0)
-- Only the polynomial corrections θ₁(t−T) and θ₂(t²−T²) vanish at t=T
+- `tests/unit -q` has reached `256 passed`
+- `scripts/run_smoke_test.py` has reached `7/7 passed`
+- long-verification artifacts exist under `outputs/verification/`
+- subprocess-isolated import timing normalized after recreating `.venv` locally:
+  - `numpy ~= 0.069s`
+  - `torch ~= 0.859s`
 
-**Numerical safety design direction (Ricky's explicit requirement):**
-- Do NOT add silent clamps or silent fallbacks in model forward passes
-- On unstable values: log/warn with the offending values and/or raise informative errors
-- Goal: make debugging easier, not hide divergence
-- Detail plan is in `shared_agent_files/claude_code_todo.md` under "Numerical safety planning"
+## Active implementation direction
 
-**Key repo files:**
-- `shared_agent_files/dialogue.txt` — coordination log between Claude, Codex, and the user
-- `shared_agent_files/claude_code_todo.md` — active implementation roadmap and task inventory
-- `references/portfolio_mv_papers_algorithm_summary.md` — paper summary and repo-layer recommendations
-- `references/portfolio_mv_papers_companion_implementation_notes.md` — implementation notes and practical caveats
-- `references/portfolio_mv_ctrl_complete_pseudocode.md` — repo-aligned oracle + CTRL pseudocode
-- `.claude/memory/MEMORY.md` — repo-local Claude memory index
+- Primary learning path:
+  - analytic oracle baseline first
+  - Huang-Jia-Zhou (2025) CTRL baseline next
+  - practical online improvements only after baseline stability
+- Current immediate focus:
+  - keep CTRL rollout/eval code trainer-free
+  - add objective/loss primitives before introducing any optimizer or trainer loop
 
-**Coordination rules:**
-- Use `.claude/memory/` as the durable Claude memory location inside the repo
-- Treat external `~/.claude/projects/.../memory` as legacy/tool-managed state if present
-- Follow `shared_agent_files/dialogue.txt` for bounded tasks, stop conditions, and review gates
+## Stable decisions
+
+- `env.mu` is the price-SDE drift, not expected log-return
+- prefer `torch` over `numpy` for repo-integrated algorithm code
+- prefer linear solve / Cholesky-style paths over explicit inverse when equivalent
+- `QuadraticCritic` terminal condition must remain:
+  - `J(T, x; w) = (x-w)^2 - (w-z)^2`
+- `GaussianActor` docs must distinguish theorem-aligned qualitative structure from repo scaffold choices
+- `apply_risky_only_projection()` should raise `ValueError` on zero gross exposure
+
+## Environment / workflow notes
+
+- Treat `.venv/` as local-only rebuildable state
+- If the repo lives in an iCloud-backed location, add `.venv/.noindex`
+- Either `.venv/bin/python` or `.venv/bin/python3` is acceptable; use whichever interpreter path actually exists locally
+- Prefer interpreter-invoked module commands such as:
+  - `.venv/bin/python -m pytest`
+  - `.venv/bin/python3 -m pytest`
+
+## Coordination
+
+- Stable baseline rules live in `.claude/CLAUDE.md`
+- Current scope and implementation state live in:
+  - `shared_agent_files/dialogue.txt`
+  - `shared_agent_files/claude_code_todo.md`

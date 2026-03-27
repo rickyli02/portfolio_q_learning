@@ -61,3 +61,29 @@ Owner: Codex
     - clamp with a documented epsilon,
     - or warn and continue
 - These choices should be documented as local design decisions when they first appear in code, rather than left implicit in implementation details.
+
+### Environment / verification decisions
+
+- The severe multi-minute `import torch` slowdown observed on 2026-03-27 was environmental, not treated as a core repo or pure PyTorch-algorithm bug.
+- Evidence:
+  - while the repo lived with an iCloud-backed `.venv`, import-time profiling showed pathological delays
+  - after recreating `.venv` locally and marking it with `.noindex`, import timing normalized to roughly:
+    - `numpy ~= 0.069s`
+    - `torch ~= 0.859s`
+- Project rule:
+  - treat `.venv/` as local-only rebuildable state
+  - do not rely on cloud sync for virtual-environment contents
+  - add `.venv/.noindex` when the repo is under an iCloud-backed path
+
+### Venv interpreter-path decisions
+
+- Do not assume every machine will expose `.venv/bin/python` and `.venv/bin/pip` convenience entrypoints.
+- Ricky approved either `python` or `python3` command usage.
+- Preferred practice:
+  - use whichever interpreter path actually exists in the venv
+  - prefer interpreter-invoked module commands such as:
+    - `.venv/bin/python -m pytest`
+    - `.venv/bin/python3 -m pytest`
+    - `.venv/bin/python -m pip`
+    - `.venv/bin/python3 -m pip`
+- Do not require a symlink-normalization step just to standardize command names.

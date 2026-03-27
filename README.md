@@ -359,7 +359,7 @@ The goal is to keep package binaries and Python import trees out of normal cloud
 
 ## Status
 
-This repository is in the foundation-building stage.
+This repository is in the middle of the baseline-assembly stage.
 
 Implemented and verified so far:
 
@@ -368,18 +368,34 @@ Implemented and verified so far:
 - typed experiment configuration under `src/config/`
 - shared data abstractions under `src/data/`
 - optional-context masking and feature containers under `src/features/`
-- focused unit-test coverage, with `.venv/bin/pytest tests/unit -q` currently passing (`90 passed`)
+- synthetic GBM environment, portfolio constraints, and reward foundation
+- analytic oracle benchmark under `src/algos/`
+- actor / critic model interfaces under `src/models/`
+- CTRL rollout collection and deterministic policy-evaluation scaffolding
+- smoke and long-verification tooling under `scripts/`
+- focused unit-test coverage, with the current unit suite at `256 passed`
 
 Not yet implemented:
 
-- synthetic trading environments
-- mean-variance reward and portfolio-constraint logic
-- actor / critic models
-- EMV or CTRL-style paper-specific learning algorithms
+- trainer loops for CTRL and related baselines
+- outer-loop `w` update logic and scheduling
 - offline / online trainers
 - evaluation and backtesting baselines
+- plotting and reporting utilities
 
-Relative to the reference notes, the repository is directionally aligned on modularity, mask-aware optional inputs, and staged implementation order, but it is not yet a faithful implementation of the papers' model design.
+Current validation utilities include:
+
+- `scripts/run_smoke_test.py` for fast integration checks
+- `scripts/run_long_verification.py` for stage-based longer verification with saved output artifacts
+
+If your local `.venv` exposes only `python3` rather than `python`, use whichever interpreter exists. For example:
+
+```bash
+.venv/bin/python3 -m pytest tests/unit -q
+.venv/bin/python3 scripts/run_smoke_test.py
+```
+
+Relative to the reference notes, the repository now covers the paper-aligned environment/model/oracle foundation and early CTRL plumbing, but it still stops short of a full trainer-level implementation of the papers' learning procedures.
 
 ---
 

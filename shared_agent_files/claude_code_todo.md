@@ -17,10 +17,24 @@ As of 2026-03-27:
 - Phase 3B environment foundation and constraint layer are approved.
 - Phase 4A config schema extension for algorithm selection and plotting is complete and verified.
 - Phase 5A oracle benchmark core is approved.
-- Latest Codex verification with current repo state is:
-  - `.venv/bin/pytest tests/unit/test_oracle.py -q -> 33 passed`
-  - `.venv/bin/pytest tests/unit -q -> 174 passed`
-  - `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed` (latest confirmed smoke status before Phase 5A)
+- Phase 6A actor / critic model interface foundation is approved.
+- Phase 7A CTRL rollout / deterministic-evaluation scaffolding is complete.
+- Phase 7B CTRL smoke integration and long-verification tooling is approved.
+- Latest verified outputs with current repo state are:
+  - model-focused verification:
+    - `tests/unit/test_models.py -q -> 49 passed`
+  - current full unit-suite verification:
+    - `tests/unit -q -> 256 passed`
+  - current smoke verification:
+    - `scripts/run_smoke_test.py -> 7/7 passed`
+  - current long-verification artifacts:
+    - `outputs/verification/2026-03-27_141812_verification.txt`
+    - `outputs/verification/2026-03-27_143247_verification.txt`
+  - current normalized import-timing artifact:
+    - `numpy ~= 0.069s`
+    - `torch ~= 0.859s`
+- The currently active bounded task in dialogue is:
+  - Phase 8A CTRL objective and loss-primitive foundation
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -36,6 +50,10 @@ As of 2026-03-27:
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
 - New work beyond the currently assigned bounded task blocks requires a formal GO task assignment in `shared_agent_files/dialogue.txt`.
 - Use `.claude/CLAUDE.md` only for stable baseline rules. Use this file plus dialogue for current-state details.
+- For `.venv` command examples, use whichever interpreter exists locally:
+  - `.venv/bin/python`
+  - or `.venv/bin/python3`
+  and prefer `-m pytest` style invocation when command-entrypoint layout differs across machines.
 
 ### Numerical safety planning (captured 2026-03-27, pre-CTRL implementation)
 
