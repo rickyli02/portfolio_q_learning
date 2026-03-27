@@ -378,13 +378,14 @@ Implemented and verified so far:
   - fixed-length inner trainer run
   - single outer `w` update
   - single combined outer iteration
+  - fixed-length outer-loop schedule
 - smoke and long-verification tooling under `scripts/`
-- focused unit-test coverage, with the current unit suite at `386 passed`
+- focused unit-test coverage, with the current unit suite at `402 passed`
 
 Not yet implemented:
 
 - trainer loops for CTRL and related baselines beyond the current bounded trainer helpers
-- repeated outer-loop scheduling beyond the current single outer-iteration slice
+- trainer-facing stateful shells and broader trainer abstractions beyond the current bounded helpers
 - offline / online trainers
 - evaluation and backtesting baselines
 - plotting and reporting utilities

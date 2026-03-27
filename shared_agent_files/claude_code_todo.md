@@ -27,13 +27,14 @@ As of 2026-03-27:
 - Phase 9B CTRL fixed-length trainer-run foundation is approved.
 - Phase 10A CTRL outer-loop w update primitive is approved.
 - Phase 10B CTRL single outer-iteration foundation is approved.
+- Phase 10C CTRL fixed-length outer-loop schedule foundation is approved.
 - Latest verified outputs with current repo state are:
   - model-focused verification:
     - `tests/unit/test_models.py -q -> 49 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 386 passed`
+    - `tests/unit -q -> 402 passed`
   - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 67 passed`
+    - `tests/unit/test_ctrl_trainer.py -q -> 83 passed`
   - current smoke verification:
     - `scripts/run_smoke_test.py -> 7/7 passed`
   - current long-verification artifacts:
@@ -43,7 +44,7 @@ As of 2026-03-27:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 10C CTRL fixed-length outer-loop schedule foundation
+  - Phase 11A stateful CTRL trainer shell foundation
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next

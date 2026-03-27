@@ -1,4 +1,4 @@
-"""Unit tests for src/train/ — Phases 9A/9B (step/run), 10A (w update), 10B (outer iter), 10C (outer loop)."""
+"""Unit tests for src/train/ — Phases 9A/9B (step/run), 10A (w update), 10B (outer iter), 10C (outer loop), 11A (stateful shell)."""
 
 import math
 
@@ -920,3 +920,174 @@ def test_phase10c_public_api_imports():
     from src.train import CTRLOuterLoopResult, ctrl_outer_loop
     assert CTRLOuterLoopResult is not None
     assert callable(ctrl_outer_loop)
+
+
+# ===========================================================================
+# Phase 11A — CTRLTrainerState stateful shell
+# ===========================================================================
+
+from src.train.ctrl_state import CTRLTrainerState
+
+
+def _make_trainer_state(
+    w_init: float = 1.0,
+    w_step_size: float = 0.1,
+    target_return_z: float = 1.0,
+) -> CTRLTrainerState:
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env(n_steps=4)
+    actor_opt, critic_opt = _make_optimizers(actor, critic)
+    return CTRLTrainerState(
+        actor=actor,
+        critic=critic,
+        env=env,
+        actor_optimizer=actor_opt,
+        critic_optimizer=critic_opt,
+        current_w=w_init,
+        target_return_z=target_return_z,
+        w_step_size=w_step_size,
+    )
+
+
+# --- construction / stored fields ---
+
+def test_trainer_state_stores_all_fields():
+    """All 8 fields are accessible after construction."""
+    actor = _make_actor()
+    critic = _make_critic()
+    env = _make_env(n_steps=4)
+    actor_opt, critic_opt = _make_optimizers(actor, critic)
+    state = CTRLTrainerState(
+        actor=actor,
+        critic=critic,
+        env=env,
+        actor_optimizer=actor_opt,
+        critic_optimizer=critic_opt,
+        current_w=2.5,
+        target_return_z=1.1,
+        w_step_size=0.05,
+    )
+    assert state.actor is actor
+    assert state.critic is critic
+    assert state.env is env
+    assert state.actor_optimizer is actor_opt
+    assert state.critic_optimizer is critic_opt
+    assert state.current_w == pytest.approx(2.5)
+    assert state.target_return_z == pytest.approx(1.1)
+    assert state.w_step_size == pytest.approx(0.05)
+
+
+# --- run_outer_iter mutates current_w ---
+
+def test_trainer_state_run_outer_iter_mutates_w():
+    """run_outer_iter updates current_w to result.w_next."""
+    state = _make_trainer_state(w_init=1.0)
+    w_before = state.current_w
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert state.current_w == pytest.approx(result.w_next)
+    # w must have been updated (result.w_next comes from w_update, not necessarily equal to w_before)
+    assert isinstance(result.w_next, float)
+
+
+def test_trainer_state_run_outer_iter_returns_correct_type():
+    """run_outer_iter returns a CTRLOuterIterResult."""
+    from src.train.ctrl_outer_iter import CTRLOuterIterResult
+    state = _make_trainer_state()
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(result, CTRLOuterIterResult)
+
+
+def test_trainer_state_run_outer_iter_w_prev_matches_current_w_before_call():
+    """result.w_prev matches the stored w at the time of the call."""
+    w_init = 1.3
+    state = _make_trainer_state(w_init=w_init)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert result.w_prev == pytest.approx(w_init)
+
+
+# --- run_outer_loop mutates current_w ---
+
+def test_trainer_state_run_outer_loop_mutates_w():
+    """run_outer_loop updates current_w to result.w_final."""
+    state = _make_trainer_state(w_init=1.0)
+    result = state.run_outer_loop(n_outer_iters=2, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert state.current_w == pytest.approx(result.w_final)
+
+
+def test_trainer_state_run_outer_loop_returns_correct_type():
+    """run_outer_loop returns a CTRLOuterLoopResult."""
+    from src.train.ctrl_outer_loop import CTRLOuterLoopResult
+    state = _make_trainer_state()
+    result = state.run_outer_loop(n_outer_iters=2, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(result, CTRLOuterLoopResult)
+
+
+def test_trainer_state_run_outer_loop_w_init_matches_current_w_before_call():
+    """result.w_init matches the stored w at the time of the call."""
+    w_init = 0.8
+    state = _make_trainer_state(w_init=w_init)
+    result = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert result.w_init == pytest.approx(w_init)
+
+
+# --- consecutive calls use updated w ---
+
+def test_trainer_state_consecutive_outer_iter_calls_thread_w():
+    """Second run_outer_iter call starts from the w set by the first."""
+    state = _make_trainer_state(w_init=1.0)
+    r1 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    w_after_first = state.current_w
+    r2 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
+    # second call's w_prev must equal w after first call
+    assert r2.w_prev == pytest.approx(w_after_first)
+    assert state.current_w == pytest.approx(r2.w_next)
+
+
+def test_trainer_state_consecutive_outer_loop_calls_thread_w():
+    """Second run_outer_loop call starts from the w set by the first."""
+    state = _make_trainer_state(w_init=1.0)
+    r1 = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    w_after_first = state.current_w
+    r2 = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=10)
+    assert r2.w_init == pytest.approx(w_after_first)
+    assert state.current_w == pytest.approx(r2.w_final)
+
+
+def test_trainer_state_mixed_consecutive_calls_thread_w():
+    """run_outer_iter followed by run_outer_loop uses updated w."""
+    state = _make_trainer_state(w_init=1.0)
+    r_iter = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    w_mid = state.current_w
+    r_loop = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=5)
+    assert r_loop.w_init == pytest.approx(w_mid)
+    assert state.current_w == pytest.approx(r_loop.w_final)
+
+
+# --- reproducibility ---
+
+def test_trainer_state_outer_iter_reproducible():
+    """Two fresh identical states + same seed → same w_next."""
+    def _run(seed: int) -> float:
+        state = _make_trainer_state(w_init=1.0)
+        result = state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=seed)
+        return result.w_next
+
+    assert _run(7) == pytest.approx(_run(7))
+
+
+def test_trainer_state_outer_loop_reproducible():
+    """Two fresh identical states + same seed → same w_final."""
+    def _run(seed: int) -> float:
+        state = _make_trainer_state(w_init=1.0)
+        result = state.run_outer_loop(n_outer_iters=2, n_updates=2, entropy_temp=0.01, base_seed=seed)
+        return result.w_final
+
+    assert _run(13) == pytest.approx(_run(13))
+
+
+# --- public API (Phase 11A) ---
+
+def test_phase11a_public_api_imports():
+    from src.train import CTRLTrainerState
+    assert CTRLTrainerState is not None

@@ -20,12 +20,13 @@ Last updated: 2026-03-27
 - Phase 9B CTRL fixed-length trainer-run foundation: approved
 - Phase 10A CTRL outer-loop w update primitive: approved
 - Phase 10B CTRL single outer-iteration foundation: approved
-- Active bounded task: Phase 10C CTRL fixed-length outer-loop schedule foundation
+- Phase 10C CTRL fixed-length outer-loop schedule foundation: approved
+- Active bounded task: Phase 11A stateful CTRL trainer shell foundation
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `386 passed`
-- `tests/unit/test_ctrl_trainer.py -q` has reached `67 passed`
+- `tests/unit -q` has reached `402 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `83 passed`
 - `scripts/run_smoke_test.py` has reached `7/7 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - subprocess-isolated import timing normalized after recreating `.venv` locally:
@@ -39,7 +40,7 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - extend the approved single outer iteration into a fixed-length outer-loop schedule
+  - add a thin stateful trainer-facing shell over the approved functional helpers
   - keep the trainer layer bounded and avoid opening full trainer/checkpoint/logging infrastructure yet
 
 ## Stable decisions
