@@ -1,34 +1,42 @@
 """Diagonal Gaussian actor for CTRL-compatible behavior and execution policies.
 
-THEOREM-BACKED STRUCTURE (Huang–Jia–Zhou 2025, companion §4.1)
----------------------------------------------------------------
-The stochastic behavior policy is:
+THEOREM-ALIGNED STRUCTURE (Huang–Jia–Zhou 2025, companion §3.1, §4.1)
+-----------------------------------------------------------------------
+The paper's multi-asset stochastic behavior policy has the qualitative form:
 
-    π(·|t, x; w; φ) = N( −φ₁·(x−w),  φ₂·e^{φ₃·(T−t)}·I_d )
+    π(·|t, x; w; φ) = N( −φ₁·(x−w),  φ₂·e^{φ₃·(T−t)} )
+
+    φ₁ ∈ R^d,  φ₂ ∈ S_{++}^d,  φ₃ ∈ R (treated as fixed in the paper)
 
 with the deterministic execution policy:
 
     û(t, x; w) = mean = −φ₁·(x−w)
 
-This is the baseline CTRL Gaussian parameterisation.  The mean is linear in
-the wealth gap (x − w), which gives a proportional-control structure.
+The per-asset vector φ₁ ∈ R^d and the time-varying covariance scaling
+φ₂ e^{φ₃(T-t)} are theorem-aligned structure from the 2025 paper §3.6.
 
-ENGINEERING CHOICES
--------------------
-1. φ₁ ∈ R^d (per-asset mean coefficient).  The single-asset CTRL paper uses
-   a scalar φ₁; this extends naturally to d assets.  φ₁ > 0 is enforced by
-   storing log φ₁ internally.
+REPO SCAFFOLD CHOICES (deviations from the paper's full parameterisation)
+--------------------------------------------------------------------------
+1. φ₁ ∈ R^d (per-asset mean coefficient): theorem-aligned for multi-asset
+   (paper §3.6 states φ₁ ∈ R^d explicitly).  Positivity (φ₁ > 0 per asset)
+   is a repo engineering choice enforced by storing log φ₁ internally.
+   The paper does not require strict positivity of φ₁ in the theorem itself.
 
 2. Precision parameterisation (companion §4.2).  The CTRL paper updates in
    φ₂⁻¹, not φ₂ directly, for numerical stability.  This class stores
    log(φ₂⁻¹) = −log(φ₂) so precision is always positive.  Variance is
    reconstructed as φ₂ = exp(−log_phi2_inv).
 
-3. φ₃ is unconstrained (any sign is mathematically valid).
+3. φ₃ is stored as a freely learnable nn.Parameter here.  The paper treats
+   φ₃ as fixed and often sets φ₃ = θ₃ (the critic decay parameter).
+   Making φ₃ learnable is a scaffold choice for this foundation layer;
+   the algorithm/trainer layer should enforce or fix φ₃ as appropriate.
 
-4. Isotropic diagonal covariance: same scalar variance φ₂ e^{φ₃(T-t)} for
-   all d assets.  This matches the CTRL baseline; a full diagonal or full
-   covariance extension would live in a separate subclass.
+4. Isotropic scalar covariance: this implementation uses a scalar φ₂ shared
+   across all d assets (isotropic diagonal covariance φ₂ e^{φ₃(T-t)}·I_d).
+   The full paper parameterisation uses φ₂ ∈ S_{++}^d (d×d positive-definite
+   matrix).  The scalar simplification is acceptable for this foundation block
+   but is a deviation from the paper's general multi-asset covariance.
 """
 
 from __future__ import annotations
@@ -75,20 +83,24 @@ class GaussianActor(ActorBase):
         self.n_risky = n_risky
         self.horizon = horizon
 
-        # THEOREM-BACKED: φ₁ > 0 — mean coefficient per asset.
-        # Store as log φ₁ to ensure positivity under unconstrained optimisation.
+        # φ₁ ∈ R^d — per-asset mean coefficient (theorem-aligned, paper §3.6).
+        # Positivity (φ₁ > 0) is a repo optimization-safety choice; the theorem
+        # does not require strict positivity.  Store as log φ₁ to enforce it.
         self.log_phi1 = nn.Parameter(
             torch.full((n_risky,), math.log(init_phi1))
         )
 
-        # ENGINEERING: φ₂⁻¹ > 0 — precision (inverse variance level).
-        # Store as log φ₂⁻¹ to ensure positivity.
+        # φ₂⁻¹ > 0 — precision (inverse variance level).  Scaffold choice:
+        # paper uses a full S_{++}^d matrix; this implementation uses a scalar.
+        # Store as log φ₂⁻¹ to ensure positivity under unconstrained optimisation.
         # Variance: φ₂ = exp(−log_phi2_inv).
         self.log_phi2_inv = nn.Parameter(
             torch.tensor(math.log(1.0 / init_phi2))
         )
 
-        # THEOREM-BACKED: φ₃ — time-decay coefficient (unconstrained).
+        # φ₃ — time-decay coefficient.  Scaffold choice: stored as a freely
+        # learnable parameter here.  The paper treats φ₃ as fixed and often sets
+        # φ₃ = θ₃.  The algorithm/trainer layer should fix or couple φ₃ as needed.
         self.phi3 = nn.Parameter(torch.tensor(float(init_phi3)))
 
     # ------------------------------------------------------------------

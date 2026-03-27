@@ -1,765 +1,27 @@
 # Dialogue Summary
 
-Archived the prior long-running dialogue on 2026-03-26 to `shared_agent_files/archive/dialogue_2026-03-26_phase1_to_phase3a.txt`.
+Archived previous dialogue:
+- `shared_agent_files/archive/dialogue_2026-03-27_phase4a_to_phase6a.txt`
 
-Current active state:
+Current project summary:
+- Phase 1 scaffold: complete
+- Phase 2 config/data foundation: complete
+- Phase 3A features and masking foundation: complete
+- Phase 3B synthetic environment and constraints: approved
+- Phase 4A config schema extension for algorithm selection and plotting: complete
+- Phase 5A oracle benchmark core: approved after robustness cleanup
+- Stable implementation notes:
+  - run verification in project `.venv`
+  - `env.mu` is the price-SDE drift, not expected log-return
+  - prefer `torch` over `numpy` for repo-integrated algorithms
+  - avoid explicit covariance inverses on primary computation paths when a solve is sufficient
 
-- Phase 1 scaffold is complete.
-- Phase 2 config/data foundation and its bounded bugfix cleanup are complete.
-- Phase 3A features and masking foundation is complete and verified.
-- Claude is paused pending a new bounded task assignment.
-
----
-[Claude Code | 2026-03-26 19:35:02 EDT]
-Verification request:
-- Task completed: Phase 3A features and masking foundation
-- Files changed:
-  - src/features/__init__.py — added public exports for all three modules
-  - src/features/masking.py — validate_context_pair, apply_context_mask, make_full_mask, make_empty_mask, random_context_dropout
-  - src/features/context_features.py — ContextBundle dataclass with all_present/all_missing factories, masked_values(), with_dropout(), to(), is_fully_present/missing
-  - src/features/base_features.py — FeatureSpec, build_model_input, total_input_dim
-  - tests/unit/test_features.py — 37 tests covering shape handling, full/empty/partial masking, dropout, failure cases, unbatched inputs, and build_model_input with all context scenarios
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit -q → 90/90 passed
-- Known risks / open questions:
-  - No env-specific feature extractors yet (by design; those will come with src/envs/)
-  - build_model_input does not handle context=None + context_spec defined case — callers must pass ContextBundle.all_missing(...) explicitly if they want zero context with known dim
-  - FeatureSpec is a descriptor only; it is not yet wired to any model constructor
-- Requesting review from: Codex
+Active review state:
+- Claude's latest bounded task is `Phase 6A actor / critic model interface foundation`
+- The most recent Claude response is preserved below
+- Codex review follows that response
 
 ---
-[Codex | 2026-03-26 21:07:28 EDT]
-Review and cleanup:
-- Approved Claude's Phase 3A features and masking foundation.
-- Independent verification in `.venv`: `.venv/bin/pytest tests/unit -q -> 90 passed in 54.45s`.
-- Repo review against the reference directions:
-  - The repository is directionally aligned with the markdown references on modularity, typed contracts, explicit masking for optional context, and staged implementation.
-  - The repository is not yet implementing the paper-specific model design. Missing major pieces include synthetic market environments, mean-variance reward/objective wiring, portfolio and leverage constraints, actor/critic parametrizations, EMV or CTRL updates, outer-loop target/Lagrange updates, trainers, and evaluation/backtest baselines.
-- Cleanup completed:
-  - archived the previous dialogue to `shared_agent_files/archive/dialogue_2026-03-26_phase1_to_phase3a.txt`
-  - archived stale Phase 2 planning notes to `references/archive/2026-03-26_phase2_execution_brief.md` and `codex_files/archive/2026-03-26_phase2_manager_notes.md`
-  - updated `README.md` and `shared_agent_files/claude_code_todo.md` to reflect the actual verified repository state
-- Status:
-  - Phase 1 complete
-  - Phase 2 complete
-  - Phase 3A complete and verified
-  - Claude remains paused pending a new bounded assignment
-
----
-[Codex | 2026-03-26 21:15:55 EDT]
-To Claude:
-- Task: Phase 3B synthetic environment and reward foundation
-- Scope: Implement only the next bounded slice needed before models and trainers: a simple synthetic portfolio environment foundation under `src/envs/` plus directly related unit tests. Do not start `src/models/`, `src/algos/`, `src/train/`, `src/eval/`, or `src/backtest/` in this task.
-- Expected files:
-  - `src/envs/`
-  - directly related unit tests under `tests/unit/`
-  - `scripts/run_smoke_test.py` only if a minimal environment smoke hook is clearly justified
-- Required design constraints:
-  - keep the environment generic and testable
-  - use the existing typed config and data foundations where appropriate
-  - support multi-asset wealth evolution on a simple synthetic return path
-  - include explicit mean-variance-style reward computation and clear portfolio step outputs
-  - keep leverage / allocation constraint handling modular rather than hard-wired into a trainer
-  - do not claim EMV or CTRL implementation in this task
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit -q`
-  - if you add a smoke-path hook, also run `.venv/bin/python scripts/run_smoke_test.py`
-  - report exact results in dialogue
-- Stop conditions:
-  1. Stop if the environment interface cannot be defined cleanly without making unapproved model or trainer decisions.
-  2. Stop if the correct implementation depends on an unresolved decision about action parameterization beyond simple portfolio weights / allocations.
-  3. Stop if the task would require edits outside the scoped files except for directly related unit tests or a minimal smoke-path hook.
-  4. Stop if required `.venv` verification fails.
-  5. Stop if the reference notes imply a materially different formulation than this bounded environment slice can represent cleanly.
-  6. Stop after this bounded task block is complete and request review before any further work.
-- Review required: Codex
-- Go/No-Go: GO
-
-Task-specific intent:
-- Build the minimal environment/reward substrate that later actor-critic code can consume.
-- Favor explicit portfolio-step data, deterministic tests, and simple synthetic dynamics over realism.
-- Use the paper notes for direction on wealth evolution, portfolio constraints, and mean-variance objective structure, but keep this task at the environment level only.
-- Keep offline and online compatibility in mind, but do not start trainer logic.
-
-After completion:
-- Post a `Verification request` entry only.
-- Do not start models, algorithms, or trainers yet.
-
----
-[Claude Code | 2026-03-26 21:38:57 EDT]
-Verification request:
-- Task completed: Phase 3B synthetic environment and reward foundation
-- Files changed:
-  - src/envs/__init__.py — public exports
-  - src/envs/base_env.py — PortfolioEnv ABC (reset/step/obs_dim/action_dim/horizon/n_steps), PortfolioStep dataclass with to_transition() helper
-  - src/envs/gbm_env.py — GBMPortfolioEnv with exact log-normal wealth step; compute_mv_terminal_reward utility for -mv_coeff*(x_T - w)^2
-  - src/envs/constraints.py — apply_leverage_constraint (paper formula from ICAIF 2022 §3.3), apply_risky_only_projection, clip_action_norm
-  - tests/unit/test_envs.py — 39 tests covering reset, step, done, time, zero-action risk-free sanity, multi-asset, to_transition, MV reward, all constraint functions, batched leverage
-  - scripts/run_smoke_test.py — added check 6: GBM env step + zero-action risk-free sanity (exp(r*T) wealth check)
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit -q → 122/122 passed
-  - .venv/bin/python scripts/run_smoke_test.py → 6/6 passed
-- Design decisions made:
-  - Action convention: dollar allocations (u_i = dollar amount in risky asset i), matches Zhou-Li 2000
-  - Obs: [wealth] shape (1,); time passed via PortfolioStep.time / Batch.time (not in obs)
-  - Reward: step-wise wealth increment Δx; MV terminal objective in compute_mv_terminal_reward for algorithm use
-  - Wealth update: exact GBM step x_{t+dt} = (x - Σu_i)*exp(r*dt) + Σ(u_i * R_i)
-  - Constraints are standalone functions, not wired into env or actor
-- Known risks / open questions:
-  - No env factory from config yet (GBMPortfolioEnv takes EnvConfig directly; factory/registry can come later)
-  - Leverage constraint uses clamp(min=1e-8) to avoid div/0 with zero total allocation — edge case documented
-  - Negative wealth is possible with large unconstrained leverage; not guarded in env (by design, constraint wrapper is caller's responsibility)
-- Requesting review from: Codex
-
-[Ricky | 2026-03-26 21:46:00 EDT]
-- Edited reference scripts to correct markdown math latex syntax. Should use `$$...$$` and `$...$` instead of `\[...\]` and `\(...\)`
-To Codex:
-- In references, create a complete pseudocode for the complete learning algorithm with mathematical details. It should be formatted similar to the papers. 
-    - You are encouraged the cite the papers and their page numbers for details.
-- Add to the implementation plan: create an oracle trading algorithm using optimal strategies from parameter values in synthetic data case, which can be called through configuration
-- Check and edit implementation plan: remove implementation requests for layer B based on the Wang-Zhou 2019/2020 paper and directly implement the version of Huang–Jia–Zhou (2025) along with improvements.
-    - do not remove the 2019/2020 paper from reference scripts focused on derivation / mathematics.
-
----
-[Codex | 2026-03-26 21:58:20 EDT]
-Review of Claude's Phase 3B environment implementation:
-
-Findings:
-- High: `src/envs/constraints.py:91`-`src/envs/constraints.py:93` breaks catastrophically for negative-net allocations. The implementation clamps `sum(action)` with `min=1e-8`, so a valid signed action like `[-1.0, 0.5]` projects to approximately `[-1e8, 5e7]` instead of rejecting the input or handling the signed case explicitly. I verified this directly in `.venv` with a one-off probe.
-- High: `src/envs/constraints.py:53`-`src/envs/constraints.py:58` does not actually enforce leverage against large short exposure. Because it uses the signed sum and only rescales when `total > limit`, an action like `[-10.0, 0.0]` at wealth `1.0` and cap `1.5` passes through unchanged. That leaves the constraint wrapper unsafe for the signed dollar-allocation convention used by the environment and expected by later Gaussian policies.
-
-Verification performed by Codex:
-- `.venv/bin/pytest tests/unit/test_envs.py -q -> 32 passed in 20.67s`
-- `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
-- `.venv/bin/pytest tests/unit -q -> 122 passed in 85.30s`
-- Additional direct probes in `.venv` reproduced the two constraint failures above.
-
-Decision:
-- Phase 3B is not approved yet.
-- The environment core (`base_env.py`, `gbm_env.py`, smoke hook) looks directionally fine.
-- The constraint layer needs a bounded bugfix before this task can be accepted.
-
-To Claude:
-- Task: Phase 3B constraint bugfix follow-up
-- Scope: Fix only the signed-action bugs in `src/envs/constraints.py` and add/adjust directly related tests in `tests/unit/test_envs.py`. Do not edit env dynamics, models, trainers, reference markdown, or broader planning docs in this task.
-- Expected files:
-  - `src/envs/constraints.py`
-  - `tests/unit/test_envs.py`
-- Requirements:
-  - either correctly support signed allocations in the constraint helpers, or explicitly reject unsupported signed cases with clear errors
-  - make the behavior mathematically coherent with the stated action convention
-  - add tests that cover negative-net allocations and large short exposure
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit/test_envs.py -q`
-  - `.venv/bin/pytest tests/unit -q`
-  - report exact results in dialogue
-- Stop conditions:
-  1. Stop if fixing the constraints requires changing the approved action convention.
-  2. Stop if the correct behavior depends on a new user decision about whether shorting is allowed.
-  3. Stop if the task would require edits outside the scoped files.
-  4. Stop if required `.venv` verification fails.
-  5. Stop after this bounded fix is complete and request review before continuing.
-- Review required: Codex
-- Go/No-Go: GO
-
----
-[Codex | 2026-03-26 21:58:20 EDT]
-Response to Ricky's note:
-- The markdown math syntax edits in the reference notes are treated as user-authored and not as a Claude scope violation.
-- I will handle the new Codex-owned reference and planning work after the Phase 3B constraint bugfix review cycle is closed.
-- That follow-up will include:
-  - a paper-style pseudocode note with citations/page references where available
-  - an implementation-plan update adding the synthetic-data oracle strategy
-  - an implementation-plan rewrite that removes Wang-Zhou 2019/2020 as an implementation target while keeping it in the mathematical/reference notes
-
----
-[Claude Code | 2026-03-26 22:18:16 EDT]
-Verification request:
-- Task completed: Phase 3B constraint bugfix follow-up
-- Root cause fixed:
-  - Both `apply_leverage_constraint` and `apply_risky_only_projection` used signed sum (Σu_i), which failed for short/mixed-sign allocations. Large short positions bypassed the leverage check; negative-net sums produced catastrophic scaling via clamp(min=1e-8).
-- Fix applied:
-  - Both functions now use gross exposure (L1 norm = Σ|u_i|) as the reference quantity. Signs and relative proportions are preserved; only the overall scale changes when the cap is exceeded.
-  - Module docstring updated to state the L1 convention and its relationship to the signed-sum formula in the paper.
-- Files changed:
-  - src/envs/constraints.py — apply_leverage_constraint and apply_risky_only_projection rewritten with L1 norm; docstrings updated
-  - tests/unit/test_envs.py — updated stale assertions (Σu_i→Σ|u_i|), added: test_leverage_large_short_is_constrained, test_leverage_mixed_long_short_gross_at_cap, test_leverage_mixed_within_cap_unchanged, test_risky_only_short_position_gross_equals_wealth, test_risky_only_sign_ratio_preserved
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit/test_envs.py -q → (running in background, confirmed same suite)
-  - .venv/bin/pytest tests/unit -q → 127/127 passed
-- Known risks / open questions: none in scope
-- Requesting review from: Codex
-
----
-[Ricky | 2026-03-26 22:00:00 EDT]
-To Codex:
-- Claude will be fixing the code concurrently.
-- Continue with your comment to implement / edit markdown and reference files.
-- Consider the following request and break it down into tasks to add: 
-    -Add plotting tools to the implementation to-dos and code folder, they should be configurable through configuration yaml files. For example:
-        - Training: 
-            - loss over episodes, training time, memory pressure
-            - gradient values over training episodes
-        - wealth trajectory comparisons, optionally including relevant evaluation metrics
-        - portfolio weight changes over time
-        - other plotting methods that you find suitable
-
----
-[Codex | 2026-03-26 22:18:51 EDT]
-Response to Ricky's active documentation / planning requests:
-- Completed the markdown and implementation-plan edits while Claude works on the bounded constraint bugfix concurrently.
-- Added `references/portfolio_mv_ctrl_complete_pseudocode.md`:
-  - repository-aligned pseudocode for the oracle benchmark, theorem-aligned CTRL baseline, and practical online CTRL path
-  - explicit note that Wang–Zhou remains a mathematical reference, not a required implementation layer
-  - implementation hooks for oracle comparison and plot-ready logging outputs
-- Updated `references/portfolio_mv_papers_algorithm_summary.md`:
-  - rewrote the repo-roadmap section so Layer B is now Huang–Jia–Zhou (2025) CTRL, not EMV
-  - kept Wang–Zhou in the reference note as derivational background
-- Updated `shared_agent_files/claude_code_todo.md`:
-  - current snapshot now reflects the active Phase 3B review state
-  - implementation plan now prioritizes:
-    - oracle benchmark from known synthetic parameters
-    - theorem-aligned CTRL baseline
-    - practical 2022 / 2025 improvements after baseline stability
-  - added the requirement that the oracle benchmark be callable through configuration
-  - added plotting / visualization tasks and modules, including YAML-configured plotting and a `scripts/plot_results.py` task block
-  - fixed stale `/reference/` paths to `/references/`
-- Note on citations:
-  - the new pseudocode note cites the paper names and repository summary sections
-  - exact paper page numbers still need manual confirmation from the local PDFs because PDF text extraction is limited in this shell environment
-- No tests were run for this pass because it was documentation / planning work only.
-
----
-[Claude Code | 2026-03-26 22:20:58 EDT]
-Status note:
-- Phase 3B constraint bugfix confirmed complete: tests/unit/test_envs.py → 37/37 passed (background run), tests/unit → 127/127 passed.
-- Paused and awaiting Codex review of the constraint bugfix before proceeding.
-- Ready to receive the next bounded task assignment once review is complete.
-
----
-[Claude Code | 2026-03-26 22:24:05 EDT]
-Reference and management file review — feedback for Codex:
-
-1. portfolio_mv_ctrl_complete_pseudocode.md
-   - The oracle formula (Algorithm A, Section 2) uses both γ and z as target-return/embedding variables. The codebase config uses `target_return` for z and there is no explicit γ field yet. This should be cross-linked or clarified before the oracle is implemented to avoid a silent naming divergence.
-   - Algorithm B line 9 uses "gamma" to mean the entropy temperature. In the codebase config this is `entropy_temp`, not `discount`. The pseudocode should use `entropy_temp` or add an explicit note that γ = entropy_temp here, not the discount factor. The collision with RL γ (discount) will cause confusion during implementation.
-   - Algorithms B and C are intentionally high-level, which is fine, but "trace update from critic features" (Algorithm C line 11) gives no formula. The companion notes do give the discrete integral form. A pointer to companion notes §3.5 or the actual update rule would make this actionable rather than aspirational.
-   - Section 5 lists "memory pressure when available" but gives no capture method. Worth noting the two practical options (tracemalloc for CPU peak, torch.cuda.memory_allocated for GPU) so the trainer logging module has clear guidance.
-
-2. claude_code_todo.md
-   - Current snapshot (lines 17–18) still says Phase 3B "not yet approved" with 122 tests. The constraint bugfix raised this to 127 and submitted a new verification request. Should be updated to reflect the pending review state accurately.
-   - Block 8 (Environments) lists "discounted-wealth portfolio environment" as a task. The GBMPortfolioEnv implemented in Phase 3B uses nominal wealth. If discounted wealth is still a separate requirement, this should be an explicit open item. If nominal is accepted, the task description should be updated to avoid misleading future implementors.
-   - Expected repo structure (Section 2) does not include src/eval/plots.py or scripts/plot_results.py, both of which are now required tasks from Block 14 and 16.4. The structure diagram should include them for consistency.
-   - No config block exists yet for plotting (PlottingConfig). Since Ricky requested YAML-configurable plotting, a PlottingConfig section needs to be added to src/config/schema.py before plotting can be wired up. This is a config-schema gap that should be assigned as a bounded task.
-   - The oracle benchmark being "callable through configuration" requires an algo_type or strategy field in config. No such field exists in ExperimentConfig yet. This is another config-schema gap.
-
-3. setup_and_utilities_guidelines.md
-   - This file references src/utils/typing.py (Section 6) as a suggested module that does not exist and is not tracked as a pending task. Either add it to the plan or remove it from the suggested list to avoid confusion.
-   - File is otherwise accurate for the completed setup layer. No urgent changes needed.
-
-Requesting Codex to address items 2a, 2c, 2d, and 2e before the next Claude implementation block — these are reference/plan gaps that could mislead implementation if left open.
-
----
-[Codex | 2026-03-26 22:35:55 EDT]
-Critical review of Claude's latest code and file-review notes:
-
-Code review findings:
-- Medium: `src/envs/constraints.py:75`-`src/envs/constraints.py:110` still has an unresolved zero-gross edge case. 
-  `apply_risky_only_projection()` now behaves sensibly for mixed-sign nonzero allocations, 
-  but if `action == 0`, it silently returns the zero vector because `gross` is clamped to `1e-8`. 
-  That violates the function's own contract that the output should satisfy `Σ|u_i| = wealth`. 
-  I verified directly in `.venv` that `apply_risky_only_projection(torch.tensor([0.0, 0.0]), torch.tensor(1.0))` returns `[0.0, 0.0]` 
-  with gross exposure `0.0`, not `1.0`.
-- Low: `src/envs/constraints.py:98`-`src/envs/constraints.py:106` says it raises if wealth is not positive, 
-  but that validation only exists for Python scalars, not tensor-valued wealth. This is a doc/runtime mismatch, not a core algorithm bug.
-
-Verification performed by Codex:
-- `.venv/bin/pytest tests/unit/test_envs.py -q -> 37 passed in 22.09s`
-- direct probes confirm the original signed-allocation failures are fixed
-- direct probe also confirms the zero-gross projection ambiguity above
-
-Decision:
-- The signed-allocation bugfix is directionally correct and substantially better than the previous version.
-- I am not fully approving the constraint layer yet because the zero-gross behavior needs an explicit policy decision rather than an implicit clamp-based fallback.
-
-Assessment of Claude's file-review note:
-- Valid and should be addressed:
-  - pseudocode variable naming ambiguity around `γ` vs `entropy_temp` in `references/portfolio_mv_ctrl_complete_pseudocode.md`
-  - stale Phase 3B snapshot and stale test count in `shared_agent_files/claude_code_todo.md`
-  - environment task text still mixing discounted vs nominal wealth without an explicit decision
-  - expected repo structure missing the newly planned plotting files
-  - `shared_agent_files/setup_and_utilities_guidelines.md` still suggests `src/utils/typing.py` even though it does not exist in code or plan
-- Valid but not a blocker before the next generic code task:
-  - add explicit `PlottingConfig` when plotting implementation is actually started
-  - add an algorithm / strategy selector field when oracle-vs-CTRL config wiring is actually started
-  - add a more explicit trace formula pointer in the pseudocode note
-  - add memory-pressure capture guidance in the pseudocode / logging notes
-
-User input required from Ricky before I finalize approval of the constraint bugfix:
-- For `apply_risky_only_projection()` when the input action has zero gross exposure, which behavior do you want?
-  1. Raise a clear `ValueError` because there is no direction to rescale into a risky-only portfolio.
-  2. Return the zero vector unchanged and document that zero-action is a no-op special case.
-  3. Something else, if you have a specific benchmark convention in mind.
-
-Until that is decided:
-- Claude should remain paused.
-- I will treat the code bugfix as provisionally good but not finally approved.
-
-
-[Ricky | 2026-03-26 22:51:00 EDT]
-- `apply_risky_only_projection()` should raise `ValueError` when input action has zero gross exposure. 
-  Document this design choice in a memory document so that in the future if this error comes up we can reexamine this issue.
-- Based on the new tasks identified in previous message, implement the items under Valid and should be addressed. Then, add Valid but not a blocker as new to do items for claude.
-
----
-[Codex | 2026-03-26 22:55:37 EDT]
-Processed Ricky's latest input:
-- Recorded the zero-gross projection decision in `codex_files/repo_design_memory.md` so it is preserved as durable design memory.
-- Implemented the documentation / planning items previously marked as "Valid and should be addressed":
-  - clarified oracle and entropy-temperature naming in `references/portfolio_mv_ctrl_complete_pseudocode.md`
-  - updated `shared_agent_files/claude_code_todo.md` to reflect the current Phase 3B review state and `127` test count
-  - made the environment plan explicit that nominal vs discounted wealth is a deliberate choice and that current `GBMPortfolioEnv` is nominal
-  - updated the expected repo structure to include plotting-related planned files
-  - removed the stale `src/utils/typing.py` suggestion from `shared_agent_files/setup_and_utilities_guidelines.md`
-- Added the "Valid but not a blocker" items as future TODOs in `shared_agent_files/claude_code_todo.md` rather than treating them as immediate blockers.
-
-To Claude:
-- Task: Phase 3B final zero-gross projection follow-up
-- Scope: Apply only the final policy decision for `apply_risky_only_projection()` in `src/envs/constraints.py` and add/adjust directly related tests in `tests/unit/test_envs.py`. Do not edit broader env logic, trainers, references, or planning files in this task.
-- Expected files:
-  - `src/envs/constraints.py`
-  - `tests/unit/test_envs.py`
-- Requirements:
-  - `apply_risky_only_projection()` must raise `ValueError` when the input action has zero gross exposure
-  - add a direct test for the zero-gross case
-  - if you touch validation text or behavior for `wealth`, keep the runtime and docstring consistent
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit/test_envs.py -q`
-  - `.venv/bin/pytest tests/unit -q`
-  - report exact results in dialogue
-- Stop conditions:
-  1. Stop if implementing the zero-gross policy requires changing the signed dollar-allocation convention.
-  2. Stop if the task would require edits outside the scoped files.
-  3. Stop if required `.venv` verification fails.
-  4. Stop after this bounded fix is complete and request review before continuing.
-- Review required: Codex
-- Go/No-Go: GO
-
----
-[Claude Code | 2026-03-26 23:07:38 EDT]
-Verification request:
-- Task completed: Phase 3B final zero-gross projection follow-up
-- Files changed:
-  - src/envs/constraints.py — apply_risky_only_projection now raises ValueError when gross exposure is zero; removed clamp(min=1e-8) fallback; updated Raises docstring to document the design decision explicitly
-  - tests/unit/test_envs.py — added test_risky_only_zero_gross_raises (confirms ValueError with match "zero gross exposure")
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit/test_envs.py -q → 38/38 passed
-  - .venv/bin/pytest tests/unit -q → 128/128 passed
-- Design decision recorded: zero-gross projection policy saved to Claude memory (project_design_decisions.md) as requested by Ricky
-- Known risks / open questions: none in scope
-- Requesting review from: Codex
-
----
-[Ricky | 2026-03-26 23:08:00 EDT]
-To Codex:
-- examine way to move claude memory to .claude folder in repo: `/Users/ricky/.claude/projects/-Users-ricky-Desktop-Columbia-Academics-Project-portfolio-q-learning-portfolio-q-learning/memory`
-
----
-[Codex | 2026-03-26 23:16:10 EDT]
-Claude memory location review:
-- Inspected the external Claude project-memory folder at:
-  - `/Users/ricky/.claude/projects/-Users-ricky-Desktop-Columbia-Academics-Project-portfolio-q-learning-portfolio-q-learning/memory`
-- Current external contents:
-  - `MEMORY.md`
-  - `project_design_decisions.md`
-  - `project_portfolio_qlearning.md`
-- Created a repo-local Claude memory mirror and designated it as the preferred source of truth:
-  - `.claude/memory/MEMORY.md`
-  - `.claude/memory/project_design_decisions.md`
-  - `.claude/memory/project_portfolio_qlearning.md`
-- Updated `.claude/CLAUDE.md` so repo-local Claude memory is now documented under `.claude/memory/`.
-- Added `codex_files/claude_memory_migration_plan.md` with the migration assessment and next-step options.
-
-Migration conclusion:
-- The repo side is now ready for Claude memory to live under `.claude/memory/`.
-- Full runtime redirection of Claude's external memory path cannot be completed from repo files alone because the active external path is controlled by local Claude tooling outside the repo.
-- If Ricky wants the external path to stop being the live location, the next user-level step is either:
-  1. reconfigure Claude locally to use `.claude/memory/`, if supported, or
-  2. replace the external memory directory with a symlink to `.claude/memory/`.
-
-What I did not change:
-- no user-owned Claude settings were edited
-- no external memory files were deleted or overwritten
-
----
-[Codex | 2026-03-26 23:22:42 EDT]
-Final Phase 3B verification and decision:
-
-Verification performed by Codex:
-- `.venv/bin/pytest tests/unit/test_envs.py -q -> 38 passed in 31.36s`
-- `.venv/bin/pytest tests/unit -q -> 128 passed in 92.39s`
-- reviewed `src/envs/constraints.py` and confirmed:
-  - signed-allocation leverage handling now uses gross exposure
-  - `apply_risky_only_projection()` now raises `ValueError` on zero gross exposure, matching Ricky's decision
-  - the new zero-gross test exists and matches the implemented behavior
-
-Decision:
-- Phase 3B is approved.
-- Environment foundation and constraint layer are now accepted.
-
-To Claude:
-- Task: Phase 4A config schema extension for algorithm selection and plotting
-- Scope: Extend the typed config system only. Add the missing config surface needed for:
-  - selecting the synthetic-data execution mode / algorithm path (at minimum oracle vs CTRL baseline vs CTRL online),
-  - YAML-configured plotting settings.
-  Do not implement plotting code, trainers, models, or algorithm logic in this task.
-- Expected files:
-  - `src/config/schema.py`
-  - `src/config/__init__.py` only if exports need to change
-  - `tests/unit/test_config.py`
-  - `configs/base/default.yaml`
-  - `configs/tests/smoke.yaml`
-  - `scripts/run_smoke_test.py` only if the config smoke path requires a minimal update
-- Requirements:
-  - add a typed config block for algorithm / strategy selection suitable for upcoming oracle-vs-CTRL work
-  - add a typed plotting config block for future YAML-driven plot generation
-  - keep naming explicit and aligned with repo conventions
-  - add validation for the new config fields
-  - update checked-in YAML configs so they load cleanly with the new schema
-  - do not add plotting implementation yet; this task is schema-only
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit/test_config.py -q`
-  - `.venv/bin/pytest tests/unit -q`
-  - `.venv/bin/python scripts/run_smoke_test.py`
-  - report exact results in dialogue
-- Stop conditions:
-  1. Stop if the correct algorithm selector design depends on an unapproved choice about trainer/module boundaries.
-  2. Stop if the plotting schema cannot be added cleanly without starting plotting implementation itself.
-  3. Stop if the task would require edits outside the scoped files.
-  4. Stop if required `.venv` verification fails.
-  5. Stop after this bounded config task is complete and request review before continuing.
-- Review required: Codex
-- Go/No-Go: GO
-
----
-[Claude Code | 2026-03-26 23:30:26 EDT]
-Verification request:
-- Task completed: Phase 4A config schema extension for algorithm selection and plotting
-- Files changed:
-  - src/config/schema.py — added AlgorithmConfig (algo_type: oracle/ctrl_baseline/ctrl_online, n_oracle_episodes) and PlottingConfig (enabled, output_dir, figure_format, dpi, plot_losses, plot_gradients, plot_training_time, plot_memory, plot_wealth_trajectories, plot_portfolio_weights, plot_eval_metrics, n_trajectory_samples); both added to ExperimentConfig; validate() extended to cover all new fields
-  - src/config/__init__.py — added AlgorithmConfig and PlottingConfig to exports
-  - tests/unit/test_config.py — added 14 new tests: AlgorithmConfig defaults, algo_type in ExperimentConfig, invalid/valid algo_type, non-positive n_oracle_episodes; PlottingConfig defaults, plotting in ExperimentConfig, invalid/valid figure_format, non-positive dpi, non-positive n_trajectory_samples, disabled plotting passthrough
-  - configs/base/default.yaml — added algo and plotting sections documenting all defaults
-  - configs/tests/smoke.yaml — added algo (ctrl_baseline) and plotting (disabled, n_trajectory_samples: 2) sections
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit/test_config.py -q → 33/33 passed
-  - .venv/bin/pytest tests/unit -q → 141/141 passed
-  - .venv/bin/python scripts/run_smoke_test.py → 6/6 passed
-- Design decisions:
-  - Supported algo_type values: 'oracle', 'ctrl_baseline', 'ctrl_online' — matches pseudocode Algorithms A/B/C
-  - Supported figure_format values: 'png', 'pdf', 'svg' — explicitly validated; 'bmp' and others rejected
-  - PlottingConfig does not contain output paths or dataset references — those are runtime concerns for the plotting module
-  - smoke.yaml sets plotting.enabled=false so smoke runs never attempt to write plot files
-- Known risks / open questions: none in scope
-- Requesting review from: Codex
-
----
-[Codex | 2026-03-26 23:33:13 EDT]
-Review of Claude's Phase 4A config schema extension:
-
-Verification performed by Codex:
-- `.venv/bin/pytest tests/unit/test_config.py -q -> 33 passed`
-- `.venv/bin/pytest tests/unit -q -> 141 passed`
-- `.venv/bin/python scripts/run_smoke_test.py -> 6/6 passed`
-
-Assessment:
-- Approved.
-- The new `AlgorithmConfig` and `PlottingConfig` are wired through the actual load path (`ExperimentConfig`, YAML files, exports, validation, tests) rather than only added as dead schema.
-- The allowed `algo_type` values match the current repo roadmap (`oracle`, `ctrl_baseline`, `ctrl_online`).
-- The plotting config remains schema-only, which matches the task scope.
-
-Non-blocking issue discovered during review:
-- `shared_agent_files/claude_code_todo.md` is stale again.
-  - It still says Phase 3B approval is pending and still lists the previously-missing `PlottingConfig` / algorithm-selector items as future TODOs even though Phase 4A just implemented them.
-  - This is a documentation/state-sync issue, not a code-schema bug.
-
-Decision:
-- Phase 4A is approved.
-- No user input is required to accept this task.
-
-Recommended next step:
-- Before the next larger implementation block, either Codex or Claude should refresh `shared_agent_files/claude_code_todo.md` so the current snapshot matches:
-  - Phase 3B approved
-  - Phase 4A complete
-  - config schema now includes algorithm selection and plotting
-
----
-[Claude Code | 2026-03-27 00:02:54 EDT]
-Documentation and management file review — feedback:
-
-1. shared_agent_files/claude_code_todo.md
-   - Current snapshot (lines 9–38) is accurate for Phases 1–4A, 141 tests, and the algo/plotting config additions. No corrections needed.
-   - Section 5 (configs block) still describes the config task without mentioning algo or plotting sub-configs. This is a stale task description for a completed block and is low-priority, but if the file is refreshed it is worth a one-line note that AlgorithmConfig and PlottingConfig were added in Phase 4A.
-
-2. references/portfolio_mv_ctrl_complete_pseudocode.md
-   - The γ_embed / entropy_temp / discount clarifications are clean and actionable. Good.
-   - Algorithm C trace update (line 11: "I_k <- trace update from critic features") still has no formula or companion-notes pointer. This was deferred as "not a blocker" and I agree — but once the CTRL implementation block is assigned, the implementor will need to navigate directly to companion notes §3.5 to find the discrete integral form. Consider flagging that in the assigned task's scope or stop conditions rather than embedding it in the pseudocode note itself.
-   - Section 5 (plotting hooks) still has no memory-pressure implementation guidance. Now that PlottingConfig includes plot_memory=False (disabled by default), the trainer implementation will need to know: use tracemalloc.get_traced_memory() for CPU peak, torch.cuda.memory_allocated() for GPU. Worth adding this as a one-line comment to Section 5 when Section 5's text is next touched, so the trainer block has clear guidance without re-opening a design question.
-
-3. .claude/CLAUDE.md — primary reference hierarchy
-   - references/portfolio_mv_ctrl_complete_pseudocode.md is the most directly actionable implementation-target document for oracle and CTRL algorithm blocks, but it is not listed in CLAUDE.md's primary reference hierarchy. It is referenced in claude_code_todo.md Section 12, but not in the canonical reference list that governs load order. Recommend adding it between items 5 and 6 in CLAUDE.md so Claude treats it as a primary reference when implementing algorithms rather than discovering it indirectly through the roadmap.
-
-4. setup_and_utilities_guidelines.md
-   - The phantom src/utils/typing.py suggestion was removed. File looks clean.
-   - Section 10 and Section 6 both suggest logging.py under src/utils/. That module doesn't exist yet. The suggested content (logging helpers) is a reasonable plan — no correction needed, just confirming it remains a pending task rather than a stale claim.
-
-5. .claude/memory/ — repo-local vs external memory sync
-   - .claude/memory/project_portfolio_qlearning.md says Phase 3B is "submitted for final Codex review" — this is stale. Phase 3B was approved, Phase 4A is complete, and the test count is 141. Needs updating.
-   - CLAUDE.md correctly designates .claude/memory/ as the durable source of truth. However, Claude's auto-memory system writes to the external path (~/.claude/projects/.../memory), not the repo-local path. This creates a practical split: new design decisions recorded by Claude mid-session go to the external path, while the repo-local memory diverges over time unless manually synced. Recommend either: (a) accepting the split with periodic repo-local sync after major phases, or (b) documenting in CLAUDE.md that Claude should write design decisions to both locations when memory is explicitly requested (as was done for the zero-gross decision).
-
-Requesting Codex to address items 3 and 5a before the next implementation block, as both could mislead implementation if left open.
-
----
-[Codex | 2026-03-27 00:09:55 EDT]
-Addressed Claude's requested doc fixes:
-- Updated `.claude/CLAUDE.md` primary reference hierarchy to include `references/portfolio_mv_ctrl_complete_pseudocode.md` as a first-class implementation reference.
-- Updated `.claude/memory/project_portfolio_qlearning.md` so the repo-local Claude memory snapshot now reflects:
-  - Phase 3B approved
-  - Phase 4A complete
-  - latest verified test status (`141` unit tests passed, smoke `6/6`)
-
-Assessment of the remaining Claude feedback:
-- Item 3 is resolved.
-- Item 5a is resolved.
-- The remaining points in Claude's note are still non-blocking guidance and do not require immediate action before the next bounded implementation task.
-
----
-[Codex | 2026-03-27 00:11:10 EDT]
-To Claude:
-- Task: Phase 5A oracle benchmark core
-- Scope: Implement only the analytic oracle benchmark core for synthetic known-parameter cases. Do not start CTRL actor/critic models, trainers, plotting implementation, or script wiring in this task.
-- Expected files:
-  - `src/algos/oracle_mv.py`
-  - `src/algos/__init__.py`
-  - directly related unit tests under `tests/unit/`
-- Required design constraints:
-  - align with the repo's current action convention: signed dollar allocations in risky assets
-  - target the synthetic known-parameter benchmark described in `references/portfolio_mv_ctrl_complete_pseudocode.md`
-  - keep the implementation modular so it can be called later through the new `AlgorithmConfig`, but do not wire config dispatch yet
-  - support the current GBM / Black-Scholes-style synthetic setting before any richer factor or jump setting
-  - make the oracle code clearly benchmark-oriented rather than trainer-oriented
-- Recommended minimum functionality:
-  - a function or small class that computes the oracle risky allocation from known coefficients and current wealth / time
-  - enough support code to evaluate or roll out the oracle policy on the existing synthetic environment, if that can be done cleanly within scope
-  - unit tests covering at least:
-    - shape / type behavior
-    - a simple sanity case where zero risk premium implies zero risky allocation
-    - deterministic repeatability for oracle rollout on a seeded environment if rollout support is added
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit -q`
-  - if you add any oracle rollout helper that meaningfully touches the smoke path, also run `.venv/bin/python scripts/run_smoke_test.py`
-  - report exact results in dialogue
-- Stop conditions:
-  1. Stop if the correct oracle formula for the current repo setting is ambiguous enough that implementing it would risk encoding the wrong benchmark.
-  2. Stop if the task requires trainer, model, plotting, or script-dispatch work to be useful.
-  3. Stop if multi-asset support cannot be added cleanly without an unapproved design decision about how the repo maps synthetic coefficients to the oracle formula.
-  4. Stop if the task would require edits outside the scoped files except directly related unit tests.
-  5. Stop if required `.venv` verification fails.
-  6. Stop after this bounded oracle task is complete and request review before continuing.
-- Review required: Codex
-- Go/No-Go: GO
-
-Task-specific intent:
-- Build the analytic benchmark before CTRL so later learning code has a clean target to compare against.
-- Favor a small, explicit API over a broad abstraction layer.
-- If there is any tension between the Zhou–Li notation and the repo's current config/state conventions, surface it in a `Stop event` rather than guessing.
-
----
-[Claude Code | 2026-03-27 00:36:43 EDT]
-Verification request:
-- Task completed: Phase 5A oracle benchmark core
-- Files changed:
-  - src/algos/oracle_mv.py — new module; OracleCoefficients dataclass, compute_oracle_coefficients(), oracle_action(), OracleMVPolicy class (from_env_params classmethod + __call__), run_oracle_episode() rollout helper
-  - src/algos/__init__.py — added exports for all five public names
-  - tests/unit/test_oracle.py — 27 tests covering coefficient shapes/values, B = mu - r convention, cov_inv correctness, singular-sigma error, zero-risk-premium zero-action sanity, action signs, exact single-asset formula value, terminal-time behavior, batched vs unbatched output shapes, multi-asset shapes, OracleMVPolicy callable, rollout keys/shapes, deterministic seeding, different-seed divergence, zero-premium rollout produces zero actions
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit/test_oracle.py -q → 27/27 passed
-  - .venv/bin/pytest tests/unit -q → 168/168 passed
-- Notation ambiguity resolved:
-  - env.mu is the price-SDE drift b_i (not expected log-return); confirmed from GBM env step implementation (log_drift = (mu - 0.5*cov_diag)*dt). The EnvConfig docstring says "expected log-return" but the code convention is b_i. Documented explicitly in oracle_mv.py module docstring.
-  - B = env.mu − r (no Ito correction needed).
-  - gamma_embed is exposed as a direct parameter; documented as distinct from reward.target_return.
-- Design decisions:
-  - Coefficients stored in float64 for precision; oracle_action converts to the wealth tensor's dtype at call time.
-  - Singular sigma raises ValueError at coefficient-computation time (not at action evaluation time).
-  - No config dispatch wiring yet (AlgorithmConfig not connected); that is a future bounded task.
-- Known risks / open questions:
-  - The EnvConfig mu docstring ("expected log-return") conflicts with the actual code convention (price-SDE drift). This does not affect the oracle implementation (which is correct per the code convention), but could confuse future implementors. Recommend a documentation fix in a future pass.
-- Requesting review from: Codex
-
-[Ricky | 2026-03-27 00:41:00 EDT]
-To Codex:
-- examine and respond to Claude
-- review test files and reason whether they tested for all facets of code
-- think about implementation details for taking matrix inverse and potential stability issues, and whether this is likely to cause errors
-- consider implications of implementing in numpy vs torch tensors and future code compatibility and computation speed
-- update documentation files
-- return feedback to user in dialogue
-
----
-[Codex | 2026-03-27 00:50:49 EDT]
-Review of Claude's Phase 5A oracle benchmark core:
-
-Verification completed in project `.venv`:
-- `.venv/bin/pytest tests/unit/test_oracle.py -q` -> `27 passed`
-- `.venv/bin/pytest tests/unit -q` -> `168 passed`
-
-Assessment:
-- The core formula mapping is correct for the repo's current GBM convention:
-  - `env.mu` is being used in code as the price-SDE drift `b`,
-  - `B = mu - r` is the correct excess-return vector under that convention,
-  - `gamma_embed` is correctly kept distinct from `reward.target_return`.
-- The choice to keep coefficient precomputation in `float64` and convert at action time is good.
-- Using `torch` instead of `numpy` is the right repo-level choice here:
-  - it matches the existing env/test interfaces,
-  - avoids conversion churn and dtype/device mismatches,
-  - keeps the oracle directly compatible with future rollout/trainer code.
-
-Critical findings:
-1. `compute_oracle_coefficients()` currently uses an explicit matrix inverse on the covariance matrix.
-   - This is numerically weaker than a solve-based path.
-   - It is unlikely to fail immediately on the current small diagonal test cases, but it becomes a real baseline-risk once correlated assets or parameter sweeps produce ill-conditioned covariance matrices.
-   - For a benchmark oracle, numerical stability matters more than preserving a literal inverse in the implementation.
-2. The oracle test file is good but not yet complete enough to close review.
-   - It covers shapes, zero-premium sanity, exact single-asset value, rollout determinism, and exact-singular failure.
-   - It does not yet cover:
-     - a correlated multi-asset exact-value case,
-     - dtype-behavior / dtype propagation expectations,
-     - the numerical-stability-sensitive path around solving for sensitivity without relying on explicit inversion.
-3. The config docs were misleading.
-   - `EnvConfig.mu` still said "expected log-return" even though the env and oracle use it as price-SDE drift.
-
-Codex actions taken now:
-- Updated `src/config/schema.py` docstring for `EnvConfig.mu` to match the actual GBM / oracle convention.
-- Refreshed `shared_agent_files/claude_code_todo.md` current snapshot for Phase 5A status and latest verified test counts.
-- Refreshed `.claude/memory/project_portfolio_qlearning.md` to prevent repo-local Claude memory drift.
-- Recorded stable design guidance in `codex_files/repo_design_memory.md`:
-  - prefer `torch` over `numpy` for repo-integrated algos,
-  - use `float64` for closed-form coefficient precompute,
-  - avoid explicit inverse usage in primary covariance-system computation paths.
-
-Decision:
-- Phase 5A is not fully approved yet.
-- Claude's substantive implementation is close, but a tiny bounded robustness follow-up is required before approval.
-
-To Claude:
-- Task: Phase 5A oracle robustness cleanup
-- Scope: keep this strictly limited to the existing oracle module and directly related tests. Do not start CTRL, trainer wiring, plotting, config dispatch, or broader algorithm work.
-- Expected files:
-  - `src/algos/oracle_mv.py`
-  - `tests/unit/test_oracle.py`
-- Required changes:
-  1. Replace the explicit inverse-based sensitivity computation with a solve-based path for the main oracle coefficient calculation.
-  2. Add at least one correlated multi-asset exact-value test that checks the actual oracle formula beyond shape-only coverage.
-  3. Add a dtype-behavior test that makes the intended coefficient/action dtype behavior explicit.
-  4. Preserve the current singular-matrix error behavior unless a cleaner bounded fix is clearly better.
-- Verification:
-  - run all verification in `.venv`
-  - `.venv/bin/pytest tests/unit/test_oracle.py -q`
-  - `.venv/bin/pytest tests/unit -q`
-- Stop conditions:
-  1. Stop if removing or retaining `cov_inv` requires a broader public-API design decision beyond this bounded task.
-  2. Stop if fixing the solve path requires touching files outside the scoped oracle module and directly related tests.
-  3. Stop if verification fails.
-  4. Stop after this bounded follow-up and request review from Codex.
-- Review required: Codex
-- Go/No-Go: GO
-
-To Ricky:
-- No additional user input is needed right now.
-- The remaining issue is narrow and technical enough to resolve through one more bounded Claude pass.
-
----
-[Claude Code | 2026-03-27 01:09:38 EDT]
-Verification request:
-- Task completed: Phase 5A oracle robustness cleanup
-- Files changed:
-  - src/algos/oracle_mv.py — removed cov_inv field from OracleCoefficients; replaced explicit torch.linalg.inv + matmul with torch.linalg.solve(cov, B) for sensitivity computation; updated docstrings; singular-matrix error behavior preserved (LinAlgError → ValueError)
-  - tests/unit/test_oracle.py — removed stale cov_inv shape assertion; replaced cov_inv correctness test with test_coefficients_sensitivity_satisfies_normal_equation (cov @ sensitivity ≈ B); added test_action_exact_correlated_multi_asset (hand-verified sensitivity=[1,1] for correlated sigma=[[0.20,0.05],[0.00,0.15]] case); added test_action_correlated_sensitivity_satisfies_normal_equation; added 4 dtype tests (coefficients are float64, oracle_action inherits float32/float64 from wealth, batched dtype match)
-- Verification run in .venv:
-  - .venv/bin/pytest tests/unit/test_oracle.py -q → 33/33 passed
-  - .venv/bin/pytest tests/unit -q → 174/174 passed
-- Design note: cov_inv is no longer stored in OracleCoefficients; callers who need the explicit inverse for CTRL can compute it separately when that module is implemented. The sensitivity vector (the quantity actually needed by the oracle) is computed via solve for better numerical stability.
-- Known risks / open questions: none in scope
-- Requesting review from: Codex
-
----
-[Codex | 2026-03-27 01:31:32 EDT]
-Review of Claude's Phase 5A oracle robustness cleanup:
-
-Verification completed in project `.venv`:
-- `.venv/bin/pytest tests/unit/test_oracle.py -q` -> `33 passed`
-- `.venv/bin/pytest tests/unit -q` -> `174 passed`
-
-Assessment:
-- Approved.
-- Claude closed the bounded follow-up correctly:
-  - replaced the explicit inverse path with `torch.linalg.solve`,
-  - added a correlated multi-asset exact-value test,
-  - added dtype-behavior coverage,
-  - stayed inside the scoped oracle module and directly related tests.
-- This resolves the main robustness concern on the oracle benchmark path.
-
-Codex actions taken:
-- Refreshed `shared_agent_files/claude_code_todo.md` to mark Phase 5A approved and update the latest verified test counts.
-- Refreshed `.claude/memory/project_portfolio_qlearning.md` to keep repo-local Claude memory aligned with the current state.
-
-To Claude:
-- Task: Phase 6A actor / critic model interface foundation
-- Scope: implement only the reusable model-interface layer needed before the theorem-aligned CTRL baseline. Do not start trainer logic, algorithm update rules, evaluation pipelines, plotting, or config dispatch wiring in this task.
-- Expected files:
-  - `src/models/`
-  - directly related unit tests under `tests/unit/`
-  - `src/models/__init__.py`
-- Required changes:
-  1. Add small, typed, torch-native model interfaces for future CTRL work.
-  2. On the actor side, support all of:
-     - stochastic behavior-policy sampling,
-     - deterministic execution / mean-action evaluation,
-     - log-prob evaluation for sampled or provided actions.
-  3. Keep the action-distribution parameterization numerically safe and intentionally modest at this stage.
-     - A diagonal-Gaussian parameterization is acceptable for this foundation block unless there is a clearly better bounded option.
-  4. On the critic side, provide a minimal, testable module/interface foundation that future martingale-critic code can build on, but do not implement the full theorem update rule yet.
-  5. Keep the interfaces compatible with the current synthetic setting:
-     - time,
-     - wealth,
-     - optional extra feature/context inputs or an already-concatenated model input tensor.
-  6. Document which pieces are theorem-backed requirements versus repo engineering scaffolds.
-- Verification:
-  - run all verification in the project `.venv`
-  - `.venv/bin/pytest tests/unit/test_models.py -q`
-  - `.venv/bin/pytest tests/unit -q`
-- Stop conditions:
-  1. Stop if this task requires implementing the actual CTRL training update rules to make the interfaces coherent.
-  2. Stop if the critic interface would require an unapproved theorem-specific decision about martingale test-function parameterization rather than a neutral base interface.
-  3. Stop if the task requires edits outside `src/models/`, `src/models/__init__.py`, and directly related unit tests.
-  4. Stop if required `.venv` verification fails.
-  5. Stop after this bounded model-interface task is complete and request review from Codex before continuing.
-- Review required: Codex
-- Go/No-Go: GO
-
-Task-specific intent:
-- Build the reusable model boundary before the first CTRL baseline implementation so algorithm code does not hard-code network details prematurely.
-- Favor clear interfaces and modest default implementations over premature abstraction depth.
-
-To Ricky:
-- No additional user input is needed for this next bounded step.
-
 [Claude Code | 2026-03-27 01:58:38 EDT]
 Verification request:
 - Task completed: Phase 6A actor / critic model interface foundation
@@ -781,3 +43,349 @@ Verification request:
 - Known risks / open questions:
   - No risks. θ₃ = 2φ₂ constraint is intentionally deferred to the CTRL algorithm layer.
 - Requesting review from: Codex
+
+---
+[Codex | 2026-03-27 02:03:02 EDT]
+Review of Claude's Phase 6A actor / critic model interface foundation:
+
+Verification completed in project `.venv`:
+- `.venv/bin/pytest tests/unit/test_models.py -q` -> `49 passed`
+- `.venv/bin/pytest tests/unit -q` -> `223 passed`
+
+Findings:
+1. `src/models/quadratic_critic.py` currently states the wrong terminal-condition claim in its module docstring.
+   - The docstring says:
+     - at `t = T`, the quadratic term vanishes and `J(T, x; w) = -(w-z)^2`
+   - But the implemented formula, the tests, and the repo references all imply:
+     - `J(T, x; w) = (x-w)^2 - (w-z)^2`
+   - This is a real documentation error in the critic module, not just wording drift.
+2. `src/models/gaussian_actor.py` overstates what is theorem-backed versus what is an engineering scaffold.
+   - The repo references support the qualitative Gaussian CTRL structure and safe covariance parameterization.
+   - But this implementation makes additional scaffold choices:
+     - per-asset positive `phi1`,
+     - a free learnable `phi3`,
+     - an isotropic scalar variance shared across assets,
+     - no enforcement of the tighter reduced-parameter relations described in the companion notes.
+   - Those choices are acceptable for a foundation layer, but the docs should label them as scaffold choices rather than presenting the whole module as the exact theorem-backed baseline parameterization.
+
+Assessment:
+- The code and tests are directionally good.
+- The bounded task is not fully approved yet because the main remaining problem is in the documentation boundary, and that boundary was explicitly part of the task.
+
+To Claude:
+- Task: Phase 6A model-interface documentation cleanup
+- Scope: keep this strictly limited to:
+  - `src/models/gaussian_actor.py`
+  - `src/models/quadratic_critic.py`
+  - directly related unit tests only if a tiny clarification test is clearly useful
+- Required changes:
+  1. Fix the `QuadraticCritic` terminal-condition documentation so it matches the actual formula and the repo references.
+  2. Re-label the `GaussianActor` docstrings/comments so they clearly distinguish:
+     - theorem-backed qualitative structure,
+     - repo engineering scaffold choices used in this foundation layer.
+  3. Do not broaden this into trainer, algorithm, or parameter-coupling enforcement work.
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit/test_models.py -q`
+  - `.venv/bin/pytest tests/unit -q`
+- Stop conditions:
+  1. Stop if fixing the documentation would require changing the actual actor/critic formulas rather than clarifying their status.
+  2. Stop if the task requires edits outside the scoped model files and directly related tests.
+  3. Stop if required `.venv` verification fails.
+  4. Stop after this bounded cleanup and request review from Codex.
+- Review required: Codex
+- Go/No-Go: GO
+
+To Ricky:
+- The old dialogue has been archived and replaced with this summary handoff.
+- No additional user input is needed right now.
+
+---
+[Codex | 2026-03-27 02:12:38 EDT]
+Reference check against original local papers for the two issues raised in dialogue:
+
+Scope checked:
+- `references/portfolio_mv_papers_algorithm_summary.md`
+- `references/portfolio_mv_papers_companion_implementation_notes.md`
+- `references/portfolio_mv_ctrl_complete_pseudocode.md`
+- original PDFs under `references/papers/`
+
+Finding 1: terminal condition
+- The reference files are correct on the terminal condition.
+- Original-paper support:
+  - `references/papers/Continuous-Time Mean–Variance Portfolio Selection- A Reinforcement Learning Framework (Wang, Zhou).pdf`, page 11:
+    - `v(T, x; w) = (x-w)^2 - (w-z)^2`
+  - `references/papers/Mean Variance Portfolio Selection by Continuous Time Reinforcement Learning.pdf`, page 12:
+    - `J(T, x, F; π; w) = (x-w)^2 - (w-z)^2`
+- This matches the existing markdown references:
+  - `references/portfolio_mv_papers_algorithm_summary.md`
+  - `references/portfolio_mv_papers_companion_implementation_notes.md`
+  - `references/portfolio_mv_ctrl_complete_pseudocode.md`
+- Conclusion:
+  - the issue is in `src/models/quadratic_critic.py` documentation, not in the reference markdown.
+
+Finding 2: Gaussian actor parameterization and theorem-backed labeling
+- The reference files are directionally correct, but the original 2025 paper is more nuanced than the current `GaussianActor` docstring suggests.
+- Original-paper support from `references/papers/Mean Variance Portfolio Selection by Continuous Time Reinforcement Learning.pdf`, page 15:
+  - approximate model forms:
+    - `J(t,x;w;θ) = (x-w)^2 e^{-θ3(T-t)} + θ2(t^2-T^2) + θ1(t-T) - (w-z)^2`
+    - `π(.|t,x;w;ϕ) = N(-ϕ1(x-w), ϕ2 e^{ϕ3(T-t)})`
+  - parameter domains:
+    - `(ϕ1, ϕ2, ϕ3) ∈ R^d × S_{++}^d × R`
+  - and the paper explicitly says it does **not** enforce all theoretical relations between these parameters, treating them "largely independently" for generality.
+- This means:
+  - the high-level reference markdown is substantially correct to describe:
+    - Gaussian mean `-phi1(x-w)`,
+    - covariance scaling `phi2 * exp(phi3(T-t))`,
+    - separation between theorem-backed structure and practical implementation choices.
+  - but the current model docstring overreaches when it presents the specific repo implementation choices as if they were exactly the paper's baseline parameterization.
+
+Important nuance from the original paper:
+- The 2025 paper's approximation uses a **matrix-valued** `phi2 ∈ S_{++}^d`, not necessarily an isotropic scalar variance shared across all assets.
+- So the current repo choice of a scalar-isotropic variance in `src/models/gaussian_actor.py` is acceptable as a bounded scaffold choice, but it should be labeled as such.
+- Likewise, the paper does not support the stronger claim that per-asset `phi1` must be kept positive in the theorem itself; that positivity handling is a repo-side parameterization choice.
+
+Bottom line:
+- For the issues raised in dialogue, the reference markdown is not the source of the mismatch.
+- The reference files are closer to the original papers than the current model docstrings are.
+- The remaining cleanup should stay focused on clarifying the model-file documentation boundary, not rewriting the reference markdown.
+
+[Ricky | 2026-03-27 02:05:00 EDT]
+To Codex and Claude:
+- add plans for warning or safety guards for taking operations that may fail or diverge, for example taking log or inverse.
+
+[Claude Code | 2026-03-27 02:15:08 EDT]
+Critical feedback on Codex Phase 6A review and Ricky's safety-guard request.
+
+---
+
+## Finding 1 (QuadraticCritic terminal condition): CONFIRMED CORRECT
+
+Codex is right. The module-level docstring says:
+
+  "terminal-condition compliant: at t=T the linear/quadratic terms vanish
+   and J(T, x; w) = −(w−z)²"
+
+This is verifiably wrong. Checking the formula directly:
+
+  J(T, x; w) = (x−w)²·e^{−θ₃·0} + θ₂(T²−T²) + θ₁(T−T) − (w−z)²
+             = (x−w)²·1        + 0            + 0          − (w−z)²
+             = (x−w)² − (w−z)²
+
+The exponential factor at t=T is e^0 = 1, not 0. Only the θ₁ and θ₂ polynomial
+time-correction terms vanish. The quadratic term (x−w)² persists.
+
+Cross-reference verification:
+- algorithm_summary.md §3.3 terminal condition: v(T,x;w) = (x−w)² − (w−z)²  ✓
+- algorithm_summary.md §3.2 closed-form: V^cl = (x−w)²e^{−ρ²(T−t)} − (w−z)²
+  → at t=T gives (x−w)² − (w−z)²  ✓
+- companion_implementation_notes.md §3.1: same structured formula with same behavior  ✓
+
+The docstring fix is to replace "the linear/quadratic terms vanish and J(T,x;w) = −(w−z)²"
+with "the polynomial time corrections vanish and J(T,x;w) = (x−w)² − (w−z)²".
+
+---
+
+## Finding 2 (GaussianActor overstates theorem-backed): PARTIALLY CORRECT, OVERCRITICAL IN PLACES
+
+Codex is right about φ₃ and scalar φ₂. It is wrong to imply per-asset φ₁ is purely scaffold.
+
+**Per-asset φ₁ (Codex says: scaffold):**
+- INCORRECT: this IS theorem-backed for multi-asset.
+- algorithm_summary.md §3.6 states explicitly: φ₁ ∈ ℝ^d.
+- The module docstring Engineering Note 1 already says the CTRL paper uses scalar φ₁;
+  per-asset φ₁ is the natural d-asset extension. Calling it scaffold overstates the deviation.
+
+**Isotropic scalar φ₂ (Codex says: scaffold):**
+- CORRECT: the full reference specifies φ₂ ∈ S_{++}^d (d×d positive-definite matrix).
+  algorithm_summary.md §3.6 line: "φ₂ ∈ S_{++}^d".
+- Our implementation uses a scalar φ₂ (isotropic covariance), which Engineering Note 4
+  already labels correctly as a simplification. The docstring section header
+  "THEOREM-BACKED STRUCTURE" is slightly misleading given this simplification.
+
+**Free learnable φ₃ (Codex says: scaffold):**
+- CORRECT: algorithm_summary.md §3.6 explicitly states "φ₃ is treated as fixed,
+  they often set φ₃ = θ₃." Making φ₃ a freely learned nn.Parameter deviates from this.
+  Engineering Note 3 says "φ₃ is unconstrained (any sign is mathematically valid)"
+  but does not note that the reference treats it as fixed. This gap is worth clarifying.
+
+**θ₃=2φ₂ coupling not enforced (Codex says: missing):**
+- Already acknowledged in both files. Not a new finding.
+  quadratic_critic.py line 23: "This constraint is NOT enforced in this module —
+  it will be imposed at the algorithm / trainer level."
+
+**Docstring header "THEOREM-BACKED STRUCTURE":**
+- Codex's core concern is valid. The header applies to the full block including
+  the scalar-φ₂ and free-φ₃ scaffold choices. A minor relabeling to distinguish
+  the theorem structure from the scaffold choices would improve accuracy.
+
+---
+[Codex | 2026-03-27 02:20:29 EDT]
+Response to Claude's feedback and new bounded task:
+
+Assessment of Claude's critique:
+- Agreed on the main correction:
+  - for the multi-asset 2025 reference path, vector-valued `phi1 ∈ R^d` is not merely a repo scaffold choice and should not be labeled that way.
+- The remaining Codex concern stands:
+  - the current `GaussianActor` docs still over-compress theorem-backed structure and repo-specific scaffold choices into one header block.
+- Ricky's new request about warning/safety guards is also valid and should be captured now before the CTRL algorithm layer starts depending on these modules.
+
+To Claude:
+- Task: Phase 6A documentation and numerical-safety planning cleanup
+- Scope: keep this strictly limited to:
+  - `src/models/gaussian_actor.py`
+  - `src/models/quadratic_critic.py`
+  - `shared_agent_files/claude_code_todo.md`
+  - directly related unit tests only if a tiny clarification test is clearly useful
+- Required changes:
+  1. Fix the `QuadraticCritic` terminal-condition documentation so it exactly matches:
+     - `J(T, x; w) = (x-w)^2 - (w-z)^2`
+  2. Refine the `GaussianActor` docstrings/comments so they distinguish:
+     - theorem-aligned multi-asset qualitative structure:
+       - mean proportional to `-(phi1)(x-w)`,
+       - covariance scaling with `phi2 * exp(phi3(T-t))`,
+       - stochastic behavior policy vs deterministic execution policy
+     - repo scaffold choices in this foundation block:
+       - isotropic scalar `phi2` rather than full matrix-valued `S_{++}^d`,
+       - free learnable `phi3` rather than a tighter fixed/coupled choice,
+       - positivity parameterization choices used for optimization safety
+  3. Do not mislabel vector-valued `phi1` as purely non-paper scaffold. Reflect Claude's correction there.
+  4. Add a short future-work / safety-planning note in `shared_agent_files/claude_code_todo.md` for operations that may fail or diverge in later algorithm/model code.
+     - Keep this as planning guidance, not a broad implementation task.
+     - Include at least:
+       - guard positivity before `log` / entropy calculations,
+       - prefer solve / Cholesky-style paths over explicit inverse where applicable,
+       - warn on covariance-conditioning / PSD-PD failures,
+       - define what should raise immediately versus clamp / warn.
+  5. Keep this as a documentation/planning cleanup only. Do not start actual numerical-guard implementation outside tiny clarifying comments.
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit/test_models.py -q`
+  - `.venv/bin/pytest tests/unit -q`
+- Stop conditions:
+  1. Stop if clarifying the documentation would require changing the actual actor or critic formulas.
+  2. Stop if the safety-planning note would require edits outside the scoped files.
+  3. Stop if required `.venv` verification fails.
+  4. Stop after this bounded cleanup and request review from Codex.
+- Review required: Codex
+- Go/No-Go: GO
+
+Task-specific intent:
+- Close the documentation boundary correctly before Phase 6A is approved.
+- Capture numerical-failure planning early, while keeping actual guard implementation for later bounded code tasks.
+
+To Ricky:
+- No additional user input is needed for this tasking step.
+
+Overall: Finding 2 is valid in substance but overclaims for per-asset φ₁.
+The ENGINEERING CHOICES section already exists and labels items 1-4 correctly.
+The Codex GO task (docstring cleanup) is appropriate and proportionate.
+
+---
+
+## Ricky's safety-guard request: analysis of risky operations in current models
+
+The following operations in src/models/ can fail silently or produce inf/nan:
+
+1. `torch.exp(self.log_phi1)` [gaussian_actor.py line 101]:
+   - Overflow risk if log_phi1 >> 0 (e.g., gradient runaway → φ₁ → inf).
+   - Result: mean_action → inf, sample → inf, log_prob → nan.
+
+2. `torch.exp(-self.log_phi2_inv)` [gaussian_actor.py line 106]:
+   - If log_phi2_inv << 0 (large precision), φ₂ overflows to inf.
+   - If log_phi2_inv >> 0 (small precision), φ₂ underflows to 0 → variance = 0 → log_prob → -inf.
+
+3. `self.phi2 * torch.exp(self.phi3 * (self.horizon - t_t))` [gaussian_actor.py line 121]:
+   - If phi3 > 0 and time_to_go is large: exponential overflow → variance → inf → sample noise → inf.
+   - If phi3 < 0 and time_to_go is large: variance → 0 → log_prob → -inf.
+
+4. `torch.log(var)` in entropy [gaussian_actor.py line 207]:
+   - var = phi2 * exp(...) which is always > 0 by construction (log-param storage).
+   - Safe under normal conditions, but produces -inf if var underflows to 0.0 (float32 denormal).
+
+5. `torch.exp(-self.theta3 * time_to_go)` [quadratic_critic.py line 105]:
+   - If theta3 < 0 and time_to_go large: exponential overflow → quad term → inf.
+
+6. `torch.linalg.solve(cov, B)` [oracle_mv.py]:
+   - Already raises torch.linalg.LinAlgError for singular/near-singular inputs.
+   - No silent failure; but no user-friendly message wrapping it.
+
+Suggested plan for safety guards (for future bounded task):
+- Add value clamping or parameter projection at the algorithm/trainer layer
+  rather than inside the model modules (keeps models clean and testable).
+- Alternative: add a `validate_parameters()` method to ActorBase/CriticBase
+  that checks for inf/nan parameters and raises informative errors.
+- For the oracle, wrap the solve in a try/except that re-raises with env context
+  (mu, sigma values) for easier debugging.
+- Do NOT add guards inside forward() that silently correct parameter drift;
+  this masks training bugs. Guards should assert or raise, not clamp and continue.
+
+This is a planning note. No code changes proposed here; Codex or user should
+assign a bounded task if guards are to be implemented.
+
+[Ricky | 2026-03-27 02:05:00 EDT]
+- For value safety guards, do not add hard clamps or numerical safety tricks that will silently influence computation
+- instead, the model should print or log unstable input values over threshholds and/or raise value warnings when the input/output is out of bounds. the goal is to make debugging easier
+
+[Claude Code | 2026-03-27 02:30:54 EDT]
+Verification request:
+- Task completed: Phase 6A documentation and numerical-safety planning cleanup
+- Files changed:
+  - src/models/quadratic_critic.py: fixed terminal-condition docstring (was wrong claim that quadratic term vanishes; now states polynomial corrections vanish, J(T,x;w) = (x-w)² − (w-z)²)
+  - src/models/gaussian_actor.py: refactored module docstring to clearly separate theorem-aligned structure from repo scaffold choices; section renamed from "THEOREM-BACKED STRUCTURE" to "THEOREM-ALIGNED STRUCTURE" with a new "REPO SCAFFOLD CHOICES" section; per-asset phi1 correctly labeled as theorem-aligned (paper §3.6 states phi1 ∈ R^d); scalar phi2 and free learnable phi3 correctly labeled as scaffold deviations
+  - shared_agent_files/claude_code_todo.md: added "Numerical safety planning" subsection with failure-mode table, planned guard approach, and Ricky's warn/raise convention (no silent clamps)
+- Verification run in .venv:
+  - `.venv/bin/pytest tests/unit/test_models.py -q`: 49 passed
+  - `.venv/bin/pytest tests/unit -q`: 223 passed
+- Known risks / open questions: none. Documentation-only changes; no formula code was modified.
+- Requesting review from: Codex
+
+---
+[Codex | 2026-03-27 02:35:19 EDT]
+Review of Claude's Phase 6A documentation and numerical-safety planning cleanup:
+
+Verification completed in project `.venv`:
+- `.venv/bin/pytest tests/unit/test_models.py -q` -> `49 passed`
+- `.venv/bin/pytest tests/unit -q` -> `223 passed`
+
+Assessment:
+- Claude fixed the major requested items correctly:
+  - `src/models/quadratic_critic.py` now documents the terminal condition correctly.
+  - `shared_agent_files/claude_code_todo.md` now contains a concrete numerical-safety planning block aligned with Ricky's no-silent-clamp rule.
+  - `src/models/gaussian_actor.py` module-level documentation is materially improved and now reflects the paper/reference nuance much better.
+
+Residual finding:
+1. `src/models/gaussian_actor.py` still has a few inline comments / local docstrings that contradict the new high-level documentation boundary.
+   - Current examples:
+     - line comment near `log_phi1`: `THEOREM-BACKED: φ₁ > 0`
+     - line comment near `phi3`: `THEOREM-BACKED: φ₃`
+     - `variance()` docstring: `THEOREM-BACKED: time-varying Gaussian variance from the CTRL parameterisation`
+   - These should be harmonized with the updated module docstring:
+     - vector-valued `phi1` is theorem-aligned,
+     - positivity parameterization is a repo optimization-safety choice,
+     - scalar-isotropic `phi2` and free learned `phi3` are scaffold deviations for this foundation layer.
+
+Decision:
+- Not fully approved yet.
+- This is now a tiny residual consistency issue, not a substantive design problem.
+
+To Claude:
+- Task: Phase 6A final comment harmonization
+- Scope: keep this strictly limited to:
+  - `src/models/gaussian_actor.py`
+- Required changes:
+  1. Update the remaining inline comments and local docstrings so they are consistent with the revised module-level documentation boundary.
+  2. Do not change formulas, APIs, tests, or the safety-planning note.
+- Verification:
+  - run all verification in the project `.venv`
+  - `.venv/bin/pytest tests/unit/test_models.py -q`
+  - `.venv/bin/pytest tests/unit -q`
+- Stop conditions:
+  1. Stop if this would require touching files outside `src/models/gaussian_actor.py`.
+  2. Stop if required `.venv` verification fails.
+  3. Stop after this tiny cleanup and request review from Codex.
+- Review required: Codex
+- Go/No-Go: GO
+
+To Ricky:
+- Claude's pass is almost clean; only a final comment-harmonization pass remains.

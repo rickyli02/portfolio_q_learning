@@ -12,8 +12,10 @@ This parameterisation is:
 - quadratic in wealth (captures the MV penalty structure),
 - exponentially decaying in time-to-maturity (via θ₃),
 - linear additive in polynomial time correction terms (θ₁, θ₂),
-- terminal-condition compliant: at t=T the linear/quadratic terms vanish and
-  J(T, x; w) = −(w−z)² (the MV terminal penalty).
+- terminal-condition compliant: at t=T the polynomial time corrections θ₁(t−T)
+  and θ₂(t²−T²) vanish (both equal 0), while the exponential factor e^{−θ₃·0}=1,
+  giving J(T, x; w) = (x−w)² − (w−z)².
+  This matches the paper terminal condition v(T,x;w) = (x−w)² − (w−z)².
 
 ENGINEERING NOTES
 -----------------

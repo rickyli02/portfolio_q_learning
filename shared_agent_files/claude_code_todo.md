@@ -37,6 +37,40 @@ As of 2026-03-27:
 - New work beyond the currently assigned bounded task blocks requires a formal GO task assignment in `shared_agent_files/dialogue.txt`.
 - Use `.claude/CLAUDE.md` only for stable baseline rules. Use this file plus dialogue for current-state details.
 
+### Numerical safety planning (captured 2026-03-27, pre-CTRL implementation)
+
+Before the CTRL algorithm layer depends on `src/models/`, the following failure
+modes must be addressed in a future bounded task.  Do not add silent clamps.
+Per Ricky's guidance: operations that may fail or diverge should **log/warn with
+the offending values** and/or **raise informative errors** — not silently correct.
+
+**Operations at risk in current model code:**
+
+| Location | Operation | Failure mode |
+|---|---|---|
+| `gaussian_actor.py` | `exp(log_phi1)` | overflow → φ₁ → inf → mean_action inf |
+| `gaussian_actor.py` | `exp(-log_phi2_inv)` | overflow/underflow → φ₂ → inf or 0 |
+| `gaussian_actor.py` | `phi2 * exp(phi3 * time_to_go)` | variance overflow (phi3 > 0 large) or underflow to 0 (phi3 < 0 large) |
+| `gaussian_actor.py` | `log(var)` in entropy | -inf if variance underflows to float32 denormal |
+| `quadratic_critic.py` | `exp(-theta3 * time_to_go)` | overflow if theta3 < 0 and time_to_go large |
+| `oracle_mv.py` | `linalg.solve(cov, B)` | LinAlgError on singular/near-singular cov |
+
+**Planned guard approach (implement in future bounded task):**
+- Add `warn_if_unstable(tensor, name, threshold)` utility in `src/utils/` that
+  calls `warnings.warn` with the offending values when `tensor.abs().max() > threshold`
+  or when `tensor` contains inf/nan.  Do not clamp; just warn.
+- Call this utility from model `forward()` / property accessors on computed
+  intermediate values (not on raw parameters, to avoid noise during early training).
+- For `oracle_mv.py`, wrap `linalg.solve` in a try/except that re-raises
+  `ValueError` with the condition number and input mu/sigma values.
+- Consider adding a `validate_parameters()` method to `ActorBase`/`CriticBase`
+  that checks for inf/nan in `self.parameters()` and raises `ValueError`.
+  This is cheap to call at the start of each training iteration.
+- PSD/PD check guidance: before calling `linalg.solve` or `linalg.cholesky`,
+  check `torch.linalg.eigvalsh(cov).min() > eps` and warn if conditioning is poor.
+- Define threshold convention: absolute values > 1e6 or inf/nan warrant a warning;
+  only inf/nan warrant an immediate raise in forward passes.
+
 Historical roadmap blocks below may describe tasks that are already complete. Treat this snapshot plus dialogue as the source of truth for current state.
 
 ---

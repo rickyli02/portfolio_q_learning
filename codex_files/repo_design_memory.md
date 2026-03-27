@@ -32,3 +32,32 @@ Owner: Codex
   - solve-based paths are numerically safer than forming `Sigma^{-1}` explicitly,
   - ill-conditioned covariance matrices are plausible once correlated synthetic assets and parameter sweeps are used,
   - the oracle benchmark is a reference baseline, so silent numerical instability is more harmful than a small amount of extra implementation care.
+
+### Model-layer documentation decisions
+
+- For the current Phase 6A model foundation, the reference markdown files are closer to the original papers than the first-pass model docstrings were.
+- `QuadraticCritic` documentation must preserve the paper-aligned terminal condition:
+  - `J(T, x; w) = (x-w)^2 - (w-z)^2`
+- `GaussianActor` documentation should distinguish:
+  - theorem-aligned qualitative structure:
+    - mean proportional to `-phi1(x-w)`,
+    - covariance scaled by `phi2 * exp(phi3(T-t))`,
+    - stochastic behavior policy versus deterministic execution policy
+  - repo scaffold choices:
+    - isotropic scalar `phi2` instead of full matrix-valued `S_{++}^d`,
+    - free learnable `phi3`,
+    - optimization-safe parameterization details such as positivity handling
+- In the multi-asset 2025 reference path, vector-valued `phi1 ∈ R^d` should not be described as purely a repo invention.
+
+### Numerical-safety planning
+
+- Add explicit planning for operations that can fail or diverge before deeper CTRL implementation starts.
+- At minimum, future bounded tasks should consider:
+  - positivity guards before `log`, entropy, or variance-derived operations,
+  - PSD/PD and conditioning checks for covariance-like objects,
+  - preferring solve / Cholesky-style paths over explicit inverse where mathematically equivalent,
+  - deciding case-by-case whether failures should:
+    - raise immediately,
+    - clamp with a documented epsilon,
+    - or warn and continue
+- These choices should be documented as local design decisions when they first appear in code, rather than left implicit in implementation details.
