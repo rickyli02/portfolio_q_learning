@@ -1292,3 +1292,305 @@ def test_trainer_state_mutated_w_step_size_zero_caught_on_outer_loop():
     state.w_step_size = 0.0
     with pytest.raises(ValueError, match="w_step_size"):
         state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01)
+
+
+# ===========================================================================
+# Phase 12A — CTRLTrainerSnapshot read-only diagnostics
+# ===========================================================================
+
+from src.train.ctrl_state import CTRLTrainerSnapshot
+
+
+# --- snapshot dataclass shape and field values ---
+
+def test_trainer_snapshot_is_dataclass():
+    """CTRLTrainerSnapshot is a dataclass with the expected fields."""
+    import dataclasses
+    assert dataclasses.is_dataclass(CTRLTrainerSnapshot)
+    field_names = {f.name for f in dataclasses.fields(CTRLTrainerSnapshot)}
+    assert field_names == {
+        "current_w", "target_return_z", "w_step_size",
+        "last_terminal_wealth", "last_w_prev", "last_n_updates",
+    }
+
+
+def test_trainer_snapshot_direct_construction():
+    """CTRLTrainerSnapshot can be constructed directly with expected field types."""
+    snap = CTRLTrainerSnapshot(
+        current_w=1.5,
+        target_return_z=1.1,
+        w_step_size=0.05,
+        last_terminal_wealth=1.2,
+        last_w_prev=1.0,
+        last_n_updates=4,
+    )
+    assert snap.current_w == pytest.approx(1.5)
+    assert snap.target_return_z == pytest.approx(1.1)
+    assert snap.w_step_size == pytest.approx(0.05)
+    assert snap.last_terminal_wealth == pytest.approx(1.2)
+    assert snap.last_w_prev == pytest.approx(1.0)
+    assert snap.last_n_updates == 4
+
+
+# --- snapshot before any run ---
+
+def test_trainer_snapshot_before_any_run_has_none_diagnostics():
+    """Snapshot before any run has None for all diagnostic fields."""
+    state = _make_trainer_state(w_init=1.0, target_return_z=1.0, w_step_size=0.1)
+    snap = state.snapshot()
+    assert snap.last_terminal_wealth is None
+    assert snap.last_w_prev is None
+    assert snap.last_n_updates is None
+
+
+def test_trainer_snapshot_before_any_run_scalar_fields():
+    """Snapshot before any run correctly reflects construction scalars."""
+    state = _make_trainer_state(w_init=1.3, target_return_z=1.05, w_step_size=0.07)
+    snap = state.snapshot()
+    assert snap.current_w == pytest.approx(1.3)
+    assert snap.target_return_z == pytest.approx(1.05)
+    assert snap.w_step_size == pytest.approx(0.07)
+
+
+# --- snapshot after run_outer_iter ---
+
+def test_trainer_snapshot_after_outer_iter_has_diagnostics():
+    """Snapshot after run_outer_iter populates all diagnostic fields."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.last_terminal_wealth is not None
+    assert snap.last_w_prev is not None
+    assert snap.last_n_updates is not None
+
+
+def test_trainer_snapshot_after_outer_iter_current_w_updated():
+    """Snapshot current_w reflects updated w after run_outer_iter."""
+    state = _make_trainer_state(w_init=1.0)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.current_w == pytest.approx(result.w_next)
+
+
+def test_trainer_snapshot_after_outer_iter_n_updates_stored():
+    """Snapshot last_n_updates matches n_updates passed to run_outer_iter."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=3, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.last_n_updates == 3
+
+
+def test_trainer_snapshot_after_outer_iter_w_prev_matches_result():
+    """Snapshot last_w_prev matches result.w_prev from run_outer_iter."""
+    state = _make_trainer_state(w_init=1.2)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.last_w_prev == pytest.approx(result.w_prev)
+
+
+def test_trainer_snapshot_after_outer_iter_terminal_wealth_finite():
+    """Snapshot last_terminal_wealth is a finite float after run_outer_iter."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert isinstance(snap.last_terminal_wealth, float)
+    assert math.isfinite(snap.last_terminal_wealth)
+
+
+# --- snapshot after run_outer_loop ---
+
+def test_trainer_snapshot_after_outer_loop_has_diagnostics():
+    """Snapshot after run_outer_loop populates all diagnostic fields."""
+    state = _make_trainer_state()
+    state.run_outer_loop(n_outer_iters=2, n_updates=2, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.last_terminal_wealth is not None
+    assert snap.last_w_prev is not None
+    assert snap.last_n_updates is not None
+
+
+def test_trainer_snapshot_after_outer_loop_current_w_updated():
+    """Snapshot current_w reflects updated w after run_outer_loop."""
+    state = _make_trainer_state(w_init=1.0)
+    result = state.run_outer_loop(n_outer_iters=2, n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.current_w == pytest.approx(result.w_final)
+
+
+def test_trainer_snapshot_after_outer_loop_n_updates_is_total():
+    """Snapshot last_n_updates equals n_outer_iters × n_updates for outer-loop calls."""
+    state = _make_trainer_state()
+    state.run_outer_loop(n_outer_iters=3, n_updates=2, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    assert snap.last_n_updates == 6  # 3 * 2
+
+
+# --- snapshot does not mutate trainer state ---
+
+def test_trainer_snapshot_does_not_mutate_current_w():
+    """Calling snapshot() does not change current_w."""
+    state = _make_trainer_state(w_init=1.7)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    w_before_snap = state.current_w
+    state.snapshot()
+    assert state.current_w == pytest.approx(w_before_snap)
+
+
+def test_trainer_snapshot_repeated_calls_are_consistent():
+    """Two consecutive snapshot() calls without intervening runs return equal values."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap1 = state.snapshot()
+    snap2 = state.snapshot()
+    assert snap1.current_w == pytest.approx(snap2.current_w)
+    assert snap1.last_n_updates == snap2.last_n_updates
+    assert snap1.last_w_prev == pytest.approx(snap2.last_w_prev)
+
+
+# --- public API export ---
+
+def test_phase12a_public_api_imports():
+    from src.train import CTRLTrainerSnapshot, CTRLTrainerState
+    assert CTRLTrainerSnapshot is not None
+    state = _make_trainer_state()
+    assert callable(state.snapshot)
+    snap = state.snapshot()
+    assert isinstance(snap, CTRLTrainerSnapshot)
+
+
+# ===========================================================================
+# Phase 12B — CTRLTrainerState in-memory history
+# ===========================================================================
+
+# --- history empty on fresh construction ---
+
+def test_trainer_history_empty_on_construction():
+    """history is empty on a freshly constructed state."""
+    state = _make_trainer_state()
+    assert len(state.history) == 0
+
+
+def test_trainer_history_is_tuple():
+    """history property returns a tuple (immutable)."""
+    state = _make_trainer_state()
+    assert isinstance(state.history, tuple)
+
+
+# --- run_outer_iter appends one entry ---
+
+def test_trainer_history_one_outer_iter_appends_one_entry():
+    """One run_outer_iter call appends exactly one history entry."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert len(state.history) == 1
+
+
+def test_trainer_history_outer_iter_entry_is_snapshot():
+    """History entry after run_outer_iter is a CTRLTrainerSnapshot."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(state.history[0], CTRLTrainerSnapshot)
+
+
+def test_trainer_history_outer_iter_entry_current_w_matches():
+    """History entry current_w matches state.current_w after run_outer_iter."""
+    state = _make_trainer_state()
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert state.history[0].current_w == pytest.approx(result.w_next)
+
+
+# --- run_outer_loop appends one entry ---
+
+def test_trainer_history_one_outer_loop_appends_one_entry():
+    """One run_outer_loop call appends exactly one history entry."""
+    state = _make_trainer_state()
+    state.run_outer_loop(n_outer_iters=2, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert len(state.history) == 1
+
+
+def test_trainer_history_outer_loop_entry_is_snapshot():
+    """History entry after run_outer_loop is a CTRLTrainerSnapshot."""
+    state = _make_trainer_state()
+    state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert isinstance(state.history[0], CTRLTrainerSnapshot)
+
+
+def test_trainer_history_outer_loop_entry_current_w_matches():
+    """History entry current_w matches state.current_w after run_outer_loop."""
+    state = _make_trainer_state()
+    result = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert state.history[0].current_w == pytest.approx(result.w_final)
+
+
+# --- repeated calls append in order ---
+
+def test_trainer_history_two_outer_iter_calls_append_in_order():
+    """Two run_outer_iter calls produce two ordered history entries."""
+    state = _make_trainer_state()
+    r1 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    r2 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
+    assert len(state.history) == 2
+    assert state.history[0].current_w == pytest.approx(r1.w_next)
+    assert state.history[1].current_w == pytest.approx(r2.w_next)
+
+
+def test_trainer_history_mixed_calls_append_in_order():
+    """run_outer_iter then run_outer_loop produces two ordered history entries."""
+    state = _make_trainer_state()
+    r_iter = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    r_loop = state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01, base_seed=5)
+    assert len(state.history) == 2
+    assert state.history[0].current_w == pytest.approx(r_iter.w_next)
+    assert state.history[1].current_w == pytest.approx(r_loop.w_final)
+
+
+# --- history is read-only from caller perspective ---
+
+def test_trainer_history_tuple_is_immutable():
+    """Returned history tuple cannot be mutated by the caller."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    hist = state.history
+    with pytest.raises((AttributeError, TypeError)):
+        hist.append(state.snapshot())  # type: ignore[attr-defined]
+
+
+# --- clear_history removes entries without mutating live state ---
+
+def test_trainer_clear_history_empties_list():
+    """clear_history() removes all history entries."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
+    state.clear_history()
+    assert len(state.history) == 0
+
+
+def test_trainer_clear_history_does_not_change_current_w():
+    """clear_history() does not change current_w."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    w_after_run = state.current_w
+    state.clear_history()
+    assert state.current_w == pytest.approx(w_after_run)
+
+
+def test_trainer_clear_history_does_not_change_diagnostics():
+    """clear_history() does not change the last_* diagnostic fields in snapshot."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap_before = state.snapshot()
+    state.clear_history()
+    snap_after = state.snapshot()
+    assert snap_after.last_n_updates == snap_before.last_n_updates
+    assert snap_after.last_w_prev == pytest.approx(snap_before.last_w_prev)
+
+
+def test_trainer_history_resumes_after_clear():
+    """Runs after clear_history() append new entries starting from index 0."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.clear_history()
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
+    assert len(state.history) == 1
+    assert state.history[0].current_w == pytest.approx(result.w_next)

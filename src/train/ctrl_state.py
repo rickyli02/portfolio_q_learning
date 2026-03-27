@@ -1,4 +1,4 @@
-"""Stateful CTRL trainer shell — Phase 11A/11B.
+"""Stateful CTRL trainer shell — Phases 11A/11B/12A.
 
 REPO ENGINEERING NOTES
 ----------------------
@@ -17,6 +17,15 @@ Phase 11B adds a centralized validation boundary at the stateful shell layer:
 - ``run_outer_iter`` validates ``n_updates >= 1`` and bound order
 - ``run_outer_loop`` validates ``n_outer_iters >= 1``, ``n_updates >= 1``, and bound order
 
+Phase 12A adds a read-only snapshot / scalar-summary layer:
+- ``CTRLTrainerSnapshot`` dataclass captures current scalar state + recent diagnostics
+- ``CTRLTrainerState.snapshot()`` returns a snapshot without mutating state
+
+Phase 12B adds an in-memory history layer:
+- ``CTRLTrainerState`` records a ``CTRLTrainerSnapshot`` after each successful run
+- ``CTRLTrainerState.history`` exposes accumulated snapshots as an immutable tuple
+- ``CTRLTrainerState.clear_history()`` resets history without touching live trainer state
+
 SCOPE BOUNDARY
 --------------
 The following are NOT implemented here:
@@ -33,6 +42,7 @@ These belong in future bounded tasks.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import torch
 
@@ -40,6 +50,36 @@ from src.envs.base_env import PortfolioEnv
 from src.models.base import ActorBase, CriticBase
 from src.train.ctrl_outer_iter import CTRLOuterIterResult, ctrl_outer_iter
 from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
+
+
+@dataclass
+class CTRLTrainerSnapshot:
+    """Read-only snapshot of ``CTRLTrainerState`` at a point in time.
+
+    REPO ENGINEERING (Phase 12A): structured in-memory diagnostics boundary.
+    All fields are plain Python scalars; no tensor graphs or live object
+    references are stored.  Intended for future logging/checkpoint consumers.
+
+    Attributes:
+        current_w:            Current outer-loop Lagrange multiplier.
+        target_return_z:      Target terminal wealth z.
+        w_step_size:          Outer-loop step size a_w.
+        last_terminal_wealth: Terminal portfolio wealth from the final inner
+                              step of the most recent run.  ``None`` if no run
+                              has been executed yet.
+        last_w_prev:          Lagrange multiplier before the most recent w
+                              update.  ``None`` if no run has been executed yet.
+        last_n_updates:       Total inner actor/critic steps in the most recent
+                              call (n_outer_iters × n_updates for outer-loop
+                              calls).  ``None`` if no run has been executed yet.
+    """
+
+    current_w: float
+    target_return_z: float
+    w_step_size: float
+    last_terminal_wealth: float | None
+    last_w_prev: float | None
+    last_n_updates: int | None
 
 
 class CTRLTrainerState:
@@ -60,6 +100,12 @@ class CTRLTrainerState:
                            ``run_outer_loop`` call.
         target_return_z:   Target terminal wealth z for w-update signals.
         w_step_size:       Positive outer-loop step size a_w.
+
+    Private diagnostic fields (populated after each run, used by snapshot()):
+        _last_terminal_wealth: Terminal wealth from last run's final step.
+        _last_w_prev:          w before the last w-update.
+        _last_n_updates:       Total inner steps in the last call.
+        _history:              Ordered list of snapshots, one per completed run.
     """
 
     def __init__(
@@ -87,6 +133,10 @@ class CTRLTrainerState:
         self.current_w = current_w
         self.target_return_z = target_return_z
         self.w_step_size = w_step_size
+        self._last_terminal_wealth: float | None = None
+        self._last_w_prev: float | None = None
+        self._last_n_updates: int | None = None
+        self._history: list[CTRLTrainerSnapshot] = []
 
     def _validate_stored_scalars(self) -> None:
         """Raise ValueError if any stored scalar field is in an invalid state.
@@ -153,6 +203,10 @@ class CTRLTrainerState:
             w_max=w_max,
         )
         self.current_w = result.w_next
+        self._last_terminal_wealth = result.run_result.final_step.terminal_wealth
+        self._last_w_prev = result.w_prev
+        self._last_n_updates = result.run_result.n_updates
+        self._history.append(self.snapshot())
         return result
 
     def run_outer_loop(
@@ -212,4 +266,51 @@ class CTRLTrainerState:
             w_max=w_max,
         )
         self.current_w = result.w_final
+        self._last_terminal_wealth = result.final_iter.run_result.final_step.terminal_wealth
+        self._last_w_prev = result.final_iter.w_prev
+        self._last_n_updates = result.n_outer_iters * result.final_iter.run_result.n_updates
+        self._history.append(self.snapshot())
         return result
+
+    def snapshot(self) -> CTRLTrainerSnapshot:
+        """Return a read-only snapshot of current trainer state and diagnostics.
+
+        REPO ENGINEERING (Phase 12A): does not mutate any trainer state.
+        Scalar diagnostics are ``None`` until the first ``run_outer_iter`` or
+        ``run_outer_loop`` call has completed.
+
+        Returns:
+            ``CTRLTrainerSnapshot`` with current scalar fields and optional
+            diagnostics from the most recent run.
+        """
+        return CTRLTrainerSnapshot(
+            current_w=self.current_w,
+            target_return_z=self.target_return_z,
+            w_step_size=self.w_step_size,
+            last_terminal_wealth=self._last_terminal_wealth,
+            last_w_prev=self._last_w_prev,
+            last_n_updates=self._last_n_updates,
+        )
+
+    @property
+    def history(self) -> tuple[CTRLTrainerSnapshot, ...]:
+        """Ordered, immutable sequence of snapshots recorded after each run.
+
+        REPO ENGINEERING (Phase 12B): one snapshot is appended after each
+        successful ``run_outer_iter`` or ``run_outer_loop`` call.  Returns a
+        tuple so callers cannot accidentally mutate the internal list.
+
+        Returns:
+            Tuple of ``CTRLTrainerSnapshot`` entries in call order.  Empty
+            before any run.
+        """
+        return tuple(self._history)
+
+    def clear_history(self) -> None:
+        """Clear all accumulated history entries.
+
+        REPO ENGINEERING (Phase 12B): removes all recorded snapshots without
+        changing ``current_w``, ``target_return_z``, ``w_step_size``, or any
+        other live trainer state.
+        """
+        self._history.clear()
