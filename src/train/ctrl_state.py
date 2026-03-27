@@ -88,6 +88,20 @@ class CTRLTrainerState:
         self.target_return_z = target_return_z
         self.w_step_size = w_step_size
 
+    def _validate_stored_scalars(self) -> None:
+        """Raise ValueError if any stored scalar field is in an invalid state.
+
+        Called at the start of each method that delegates to sub-helpers so
+        that post-construction mutations to invalid values are caught at the
+        state-shell boundary rather than propagating silently.
+        """
+        if not math.isfinite(self.current_w):
+            raise ValueError(f"current_w must be finite, got {self.current_w}")
+        if not math.isfinite(self.target_return_z):
+            raise ValueError(f"target_return_z must be finite, got {self.target_return_z}")
+        if self.w_step_size <= 0.0 or not math.isfinite(self.w_step_size):
+            raise ValueError(f"w_step_size must be finite and > 0, got {self.w_step_size}")
+
     def run_outer_iter(
         self,
         n_updates: int,
@@ -113,8 +127,10 @@ class CTRLTrainerState:
             ``CTRLOuterIterResult`` from ``ctrl_outer_iter``.
 
         Raises:
-            ValueError: if ``n_updates < 1`` or bound order is invalid.
+            ValueError: if stored scalar state is invalid, ``n_updates < 1``,
+                or bound order is invalid.
         """
+        self._validate_stored_scalars()
         if n_updates < 1:
             raise ValueError(f"n_updates must be >= 1, got {n_updates}")
         if w_min is not None and w_max is not None and w_min > w_max:
@@ -167,8 +183,10 @@ class CTRLTrainerState:
             ``CTRLOuterLoopResult`` from ``ctrl_outer_loop``.
 
         Raises:
-            ValueError: if ``n_outer_iters < 1``, ``n_updates < 1``, or bound order is invalid.
+            ValueError: if stored scalar state is invalid, ``n_outer_iters < 1``,
+                ``n_updates < 1``, or bound order is invalid.
         """
+        self._validate_stored_scalars()
         if n_outer_iters < 1:
             raise ValueError(f"n_outer_iters must be >= 1, got {n_outer_iters}")
         if n_updates < 1:

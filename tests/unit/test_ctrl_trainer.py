@@ -1234,3 +1234,61 @@ def test_phase11b_public_api_unchanged():
     assert hasattr(state, "run_outer_loop")
     assert callable(state.run_outer_iter)
     assert callable(state.run_outer_loop)
+
+
+# --- post-construction scalar mutation caught at method call time ---
+
+def test_trainer_state_mutated_current_w_nan_caught_on_outer_iter():
+    """Mutating current_w to NaN after construction is caught in run_outer_iter."""
+    state = _make_trainer_state()
+    state.current_w = float("nan")
+    with pytest.raises(ValueError, match="current_w"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_current_w_inf_caught_on_outer_iter():
+    """Mutating current_w to inf after construction is caught in run_outer_iter."""
+    state = _make_trainer_state()
+    state.current_w = float("inf")
+    with pytest.raises(ValueError, match="current_w"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_target_return_z_nan_caught_on_outer_iter():
+    """Mutating target_return_z to NaN after construction is caught in run_outer_iter."""
+    state = _make_trainer_state()
+    state.target_return_z = float("nan")
+    with pytest.raises(ValueError, match="target_return_z"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_w_step_size_zero_caught_on_outer_iter():
+    """Mutating w_step_size to 0 after construction is caught in run_outer_iter."""
+    state = _make_trainer_state()
+    state.w_step_size = 0.0
+    with pytest.raises(ValueError, match="w_step_size"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_w_step_size_negative_caught_on_outer_iter():
+    """Mutating w_step_size to negative after construction is caught in run_outer_iter."""
+    state = _make_trainer_state()
+    state.w_step_size = -0.5
+    with pytest.raises(ValueError, match="w_step_size"):
+        state.run_outer_iter(n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_current_w_nan_caught_on_outer_loop():
+    """Mutating current_w to NaN after construction is caught in run_outer_loop."""
+    state = _make_trainer_state()
+    state.current_w = float("nan")
+    with pytest.raises(ValueError, match="current_w"):
+        state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01)
+
+
+def test_trainer_state_mutated_w_step_size_zero_caught_on_outer_loop():
+    """Mutating w_step_size to 0 after construction is caught in run_outer_loop."""
+    state = _make_trainer_state()
+    state.w_step_size = 0.0
+    with pytest.raises(ValueError, match="w_step_size"):
+        state.run_outer_loop(n_outer_iters=1, n_updates=1, entropy_temp=0.01)

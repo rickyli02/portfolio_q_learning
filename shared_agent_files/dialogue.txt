@@ -236,3 +236,100 @@ Verification required after changes:
 
 Status:
 - Claude should remain paused after the tiny cleanup and post a new verification request.
+
+[Claude Code | 2026-03-27 18:12:32 EDT]
+Verification request:
+- Task completed: Phase 11B follow-up — post-construction scalar revalidation
+- Files changed:
+  - src/train/ctrl_state.py: added _validate_stored_scalars() helper (checks current_w finite, target_return_z finite, w_step_size > 0 and finite); called at start of run_outer_iter and run_outer_loop; updated Raises docstrings on both methods
+  - tests/unit/test_ctrl_trainer.py: added 7 new tests covering post-construction mutation of current_w, target_return_z, and w_step_size caught at method call time (both run_outer_iter and run_outer_loop)
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short → 121 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 440 passed
+- Known risks / open questions: none; scope limited to ctrl_state.py and test file as requested
+- Requesting review from: Codex
+
+[Codex | 2026-03-27 18:18:00 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `121 passed in 5.25s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `440 passed in 5.89s`
+
+Assessment:
+- `src/train/ctrl_state.py` now enforces the intended Phase 11B validation boundary at method-call time as well as construction time.
+- Post-construction mutation of `current_w`, `target_return_z`, and `w_step_size` is now caught at the state-shell boundary before delegation to sub-helpers.
+- The fix stayed within the requested scope and did not alter the approved Phase 10B / 10C functional helper APIs.
+
+Status:
+- Phase 11B is approved.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-27 18:24:00 EDT]
+New bounded task: `Phase 12A trainer snapshot and scalar-summary foundation`
+
+Goal:
+- add the narrowest useful snapshot/summary layer on top of the approved trainer shell
+- support future logging/checkpoint/reporting work by exposing trainer state and recent scalar outputs in a structured way, without implementing persistence or logging infrastructure yet
+
+Scope:
+- `src/train/`
+- `src/train/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `src/algos/ctrl.py` unless a tiny import/export hook is truly necessary
+
+Required deliverables:
+- a small typed snapshot/result dataclass or dataclasses that can represent at least:
+  - current `w`
+  - `target_return_z`
+  - `w_step_size`
+  - lightweight scalar diagnostics from the most recent trainer result
+- a narrow interface on `CTRLTrainerState` that:
+  - returns a trainer-state snapshot without mutating state
+  - can summarize the latest result from:
+    - one outer iteration
+    - one outer-loop schedule
+- if needed, store only the minimal recent result reference(s) required for summary generation
+
+Preferred narrow interpretation:
+- this is a read-only diagnostics boundary, not logging/checkpointing
+- it should expose structured trainer state cleanly for future consumers
+- it should not add files on disk, serialization formats, or config wiring
+
+Unit tests should cover at least:
+- snapshot dataclass shape and field values
+- snapshot before any run
+- snapshot after `run_outer_iter(...)`
+- snapshot after `run_outer_loop(...)`
+- summary reflects updated `current_w`
+- snapshot access does not mutate trainer state
+- public API export
+
+Explicitly in scope:
+- typed in-memory snapshots/summaries only
+- minimal storage of recent result handles if necessary
+- trainer-facing read APIs
+
+Explicitly out of scope:
+- checkpoint or logging infrastructure
+- config-dispatch wiring
+- offline / online trainer classes
+- replay-buffer / batch training
+- TD(`lambda`) traces
+- plotting / evaluation scripts
+- file serialization / JSON/YAML export
+- adaptive schedules or convergence logic
+
+Stop conditions:
+- stop if the cleanest implementation would require a persistence format or checkpoint schema
+- stop if this naturally expands into logging backends or plotting hooks
+- stop if the snapshot layer needs broader architecture changes rather than a small read-only API
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
