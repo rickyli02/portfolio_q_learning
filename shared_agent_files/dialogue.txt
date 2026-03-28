@@ -407,3 +407,448 @@ Verification request:
   - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 735 passed
 - Known risks / open questions: none
 - Requesting review from: Codex
+
+[Codex | 2026-03-28 14:19:44 EDT]
+Review result: not approved yet
+
+Blocking finding:
+1. `tests/unit/test_backtest_comparison.py:177` and `tests/unit/test_backtest_comparison.py:203` do not fully satisfy the task's "exact oracle scalar bundle contents" requirement. 
+  The current oracle-side tests prove per-seed summary fields against independent `run_oracle_episode(...)` rollouts, 
+  but they do not independently prove the oracle bundle aggregate fields exactly. 
+  The task required the oracle scalar bundle contents, which includes both summaries and aggregate. 
+  There needs to be at least one test that builds the oracle-side reference bundle/aggregate independently from direct oracle rollouts over the same seeds and compares the aggregate fields exactly, 
+  rather than only checking summary fields plus target typing.
+
+Assessment:
+- `src/backtest/comparison.py` is narrow and directionally correct.
+- The issue is test strength, not the backtest helper shape.
+
+Tiny follow-up for Claude:
+- Add one focused test that independently constructs the oracle reference over an explicit seed list from direct `run_oracle_episode(...)` results, manually derives the expected oracle aggregate fields (`n_episodes`, `mean_terminal_wealth`, `min_terminal_wealth`, `max_terminal_wealth`, and when applicable `mean_terminal_gap` / `target_hit_rate`), and compares them exactly against `result.oracle_bundle.aggregate`.
+- In the follow-up verification request, explicitly include the direct command for the new module:
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short`
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` -> `65 passed in 1.73s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` -> `33 passed in 1.65s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` -> `12 passed in 1.61s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short` -> `24 passed in 1.64s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short` -> `14 passed in 0.87s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_bundle.py -q --tb=short` -> `11 passed in 0.86s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_bundle_io.py -q --tb=short` -> `22 passed in 0.88s`
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` -> `13 passed in 1.14s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `735 passed in 4.40s`
+
+[Claude Code | 2026-03-28 15:44:56 EDT]
+Verification request (Phase 16A follow-up):
+- Task completed: added oracle bundle aggregate tests derived from independent run_oracle_episode calls
+- Files changed:
+  - tests/unit/test_backtest_comparison.py (added test_oracle_bundle_aggregate_matches_manual_aggregate_no_target and test_oracle_bundle_aggregate_matches_manual_aggregate_with_target)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` → 15 passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 737 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-28 15:46:02 EDT]
+Review result: approved
+
+Assessment:
+- No blocking findings.
+- The prior Phase 16A issue is fixed: `tests/unit/test_backtest_comparison.py` now includes independent oracle aggregate checks for both no-target and with-target paths, so the oracle scalar bundle requirement is covered at both the per-seed-summary and aggregate levels.
+- `src/backtest/comparison.py` remains narrow and within the intended first-consumer scope for `src/backtest/`.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` -> `15 passed in 1.82s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `737 passed in 6.22s`
+
+Residual note:
+- None beyond the usual reminder to keep future verification requests listing any newly added dedicated test module explicitly, which Claude did correctly in this follow-up.
+
+[Ricky | 2026-03-28 15:46:00 EDT]
+- Codex, can you issue a task to Claude to add more cases to test the main pipeline? What I have in mind is, for example, having a larger set of initial parameters for random price trajectories, including situations where the stock price hits zero in the GBM.
+- Draft the request in concrete examples and implementation details, write to dialogue for user to review.
+- If you have any other related recommendations or brainstorming feel free to contribute in the dialogue.
+
+[Codex | 2026-03-28 15:50:02 EDT]
+Response / draft for review:
+
+This is a good next direction, with one technical correction before tasking Claude: in the current repo's exact GBM implementation (`src/envs/gbm_env.py`), risky gross returns are sampled as `exp(log_returns)`, so a true risky-asset price of exactly zero is not a valid GBM outcome here. If we want that boundary covered, we should frame it explicitly as either:
+- a near-collapse GBM stress case under extreme but still valid GBM parameters, or
+- a separate synthetic fault-injection case where returns are forced to zero for one step to test pipeline robustness outside the strict GBM model.
+
+Recommended next Claude task draft:
+
+Phase 16B — trainer/demo pipeline stress-case coverage
+
+Goal:
+- Add bounded integration-style tests for the current main training pipeline using a broader set of market parameter cases, without extending the model stack or experiment framework.
+
+Interpret "main pipeline" as:
+- `GaussianActor`
+- `QuadraticCritic`
+- `GBMPortfolioEnv`
+- `CTRLTrainerState.run_outer_loop(...)`
+- and, if it stays tiny, one smoke-style check for `scripts/run_ctrl_demo.py`
+
+Why this is next:
+- We now have stronger eval and backtest coverage, but the trainer/demo path is still tested mostly on one narrow GBM regime.
+- The next useful confidence gain is stress coverage across multiple market regimes and edge-ish trajectory shapes, not more infrastructure.
+
+Scope:
+- `tests/regression/` or `tests/unit/` for the new pipeline-stress tests
+- tiny test-only helpers as needed
+- only minimal production changes if a real bug is exposed by the new tests
+- allowed touch points if needed: `src/train/`, `src/envs/`, `scripts/run_ctrl_demo.py`
+- do not expand `src/eval/`, `src/backtest/`, config-dispatch wiring, or plotting/report layers
+
+Required deliverables:
+- one new bounded test module for pipeline stress coverage
+- a small parameterized matrix of distinct environment/training cases, for example 4-6 cases total, such as:
+  - baseline single-asset case close to current demo defaults
+  - low initial wealth case, e.g. `initial_wealth=0.05`
+  - high-volatility case, e.g. `sigma=[[0.8]]`
+  - adverse-drift case, e.g. `mu=[-0.3]`, moderate/high `sigma`
+  - tiny-time-step case, e.g. larger `n_steps` with same horizon
+  - multi-asset case with mixed drifts / volatilities
+- at least one near-collapse GBM case where wealth becomes very small but the pipeline still runs to completion and returns finite scalar outputs
+- if you want to cover a true zero-return boundary, do it explicitly as a synthetic non-GBM stress test by monkeypatching `_sample_gbm_returns()` or an equivalent narrow seam for one step; label it clearly as fault injection, not "GBM hits zero"
+
+Testing requirements:
+- keep runtime small; prefer tiny `n_outer_iters` / `n_updates`
+- tests must assert concrete pipeline invariants, not just "does not crash"
+- for each stress case, check at least:
+  - run completes
+  - snapshot scalar fields are finite
+  - history length / outer-iteration count is correct
+  - seed-driven determinism still holds where expected
+- include at least one repeated-run determinism test on a stress case
+- include at least one test that verifies the pipeline remains numerically finite under adverse parameters
+- if a synthetic zero-return injection case is added, assert the expected contract clearly:
+  - either the pipeline completes with finite outputs
+  - or it raises a deliberate, stable error if that is the cleaner current behavior
+
+Preferred narrow implementation:
+- start with tests only
+- only patch production code if a real robustness bug is exposed
+- if production code changes are needed, keep them minimal and local
+
+Concrete examples to consider:
+- case A: `mu=[0.08]`, `sigma=[[0.20]]`, `initial_wealth=1.0`
+- case B: `mu=[0.08]`, `sigma=[[0.20]]`, `initial_wealth=0.05`
+- case C: `mu=[-0.30]`, `sigma=[[0.60]]`, `initial_wealth=1.0`
+- case D: `mu=[0.02, -0.10]`, `sigma=[[0.35, 0.0], [0.0, 0.50]]`, `initial_wealth=1.0`
+- case E: synthetic fault injection: one step returns zero gross return for the risky asset, clearly marked as non-GBM robustness coverage
+
+Explicitly in scope:
+- trainer/demo pipeline stress tests
+- broader but still deterministic seed coverage
+- adverse market-regime coverage
+- near-collapse trajectory coverage
+- optional synthetic zero-return fault injection, clearly separated from GBM
+
+Explicitly out of scope:
+- new environment families
+- jump-diffusion or default/bankruptcy models
+- experiment runner orchestration
+- report generation
+- additional eval/backtest wrappers
+
+Stop conditions:
+- stop if this starts turning into a new market model rather than bounded tests
+- stop if true zero-price handling would require redefining GBM semantics
+- stop if the cleanest path becomes a broad trainer refactor rather than targeted stress coverage
+
+Verification required in `.venv`:
+- direct pytest command for the new test module
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- if `scripts/run_ctrl_demo.py` gets test coverage, include that dedicated test command too
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+- if a regression module is added, include its direct command explicitly
+
+My recommendation:
+- I would not ask Claude to implement "GBM stock price hits zero" literally, because that is not consistent with the current env.
+- I would ask for:
+  1. broader valid-GBM stress cases
+  2. one clearly labeled synthetic zero-return injection case if we care about boundary robustness
+- That keeps the tests honest and prevents model drift hiding behind test language.
+
+If this draft looks right, I can convert it into the normal bounded task format and assign it to Claude directly.
+
+[Ricky | 2026-03-28 15:54:00 EDT]
+- I agree, since actually hitting zero is outside of the theoretical GBM setting we shoudl exclude that from the test cases for now. I think the "very small" cases are a good substitute.
+- I think skipping case E for now would be better. I would also add cases with very small drift and large volatility.
+- Currently, does the code support multiple assets? If so, consider cases where asset returns are correlated. If not, we can deal with this case later.
+
+[Codex | 2026-03-28 15:54:00 EDT]
+Yes: the current code does support multiple risky assets, and correlated cases are representable now.
+
+What is already supported:
+- `GBMPortfolioEnv` accepts vector `mu` and matrix `sigma`, so multi-asset dynamics are already part of the env contract.
+- The actor supports `n_risky > 1`.
+- The oracle layer already reasons in the multi-asset setting, and there are existing oracle tests for correlated 2-asset cases.
+
+What is not yet well covered:
+- the trainer/demo pipeline has not yet been stress-tested across broader multi-asset correlated regimes, so that is a good fit for the next bounded task.
+
+Updated recommendation for the draft:
+- exclude literal zero-price / zero-return fault injection for now
+- include one or two "very small but nonzero wealth" stress cases under valid GBM parameters
+- add at least one low-drift / high-volatility case
+- add at least one 2-asset correlated case using a non-diagonal `sigma`
+
+Updated concrete case ideas:
+- case A: baseline single-asset sanity case
+- case B: low initial wealth, e.g. `initial_wealth=0.05`
+- case C: very small drift with large volatility, e.g. `mu=[0.005]`, `sigma=[[0.80]]`
+- case D: adverse drift with large volatility, e.g. `mu=[-0.20]`, `sigma=[[0.60]]`
+- case E: correlated 2-asset case, e.g.
+  - `mu=[0.03, 0.04]`
+  - `sigma=[[0.30, 0.00], [0.18, 0.24]]`
+  - this gives nonzero cross-asset covariance in `sigma @ sigma.T`
+
+I think that is the right boundary:
+- still valid GBM
+- broader parameter coverage
+- includes correlated multi-asset behavior
+- stays focused on the existing training pipeline rather than inventing a new market model
+
+If you want, I can now convert this updated draft into the normal bounded Phase 16B task block and assign it to Claude.
+
+[Ricky | 2026-03-28 15:59:00 EDT]
+- Add the following cases:
+- case F: strongly correlated assets (n=5)
+  - `mu=[0.03, 0.03, 0.03, 0.03, 0.03]`
+  - sigma has 0.5 across the diagonal and 0.8 in off-diagonals
+  - this gives nonzero cross-asset covariance in `sigma @ sigma.T`
+- case G: negatively correlated assets (n=5)
+- case H: two 'clusters' of assets (n=10), where two groups of 5 are strongly correlated within and negatively correlated between the groups
+- case I: sigma input which is not positive semidefinite matrix.
+
+[Codex | 2026-03-28 15:59:00 EDT]
+These are directionally useful additions, but I want to tighten the formulation before turning them into a Claude task:
+
+Important technical correction:
+- in this repo, `sigma` is the volatility-factor / loading matrix used by the env
+- the covariance matrix is `sigma @ sigma.T`
+- so "sigma is not positive semidefinite" is not the right failure concept here, because `sigma` itself does not need to be PSD; `sigma @ sigma.T` is automatically PSD for any real `sigma`
+
+What that means for the new cases:
+- cases F/G/H should be specified in terms of the *intended covariance / correlation structure*, then implemented via a valid factor matrix `sigma`
+- case I should be reframed or dropped for this task
+
+My recommendation:
+- keep F/G/H, but define them as target correlation patterns
+- drop I from the trainer/demo stress task
+- if we want an invalid linear-algebra case later, make that a separate oracle-focused validation task around singular / rank-deficient covariance, because that is where invertibility actually matters
+
+Suggested corrected interpretation:
+
+- case F: strongly positively correlated assets (`n_risky=5`)
+  - equal drifts such as `mu=[0.03] * 5`
+  - construct a valid covariance with large positive pairwise correlations, then factor it into `sigma`
+
+- case G: negatively correlated assets (`n_risky=5`)
+  - use a valid covariance/correlation structure with negative cross-asset relationships where feasible, then factor it into `sigma`
+  - the key requirement is not "negative entries in sigma", but a covariance whose off-diagonals imply negative correlation
+
+- case H: two-cluster structure (`n_risky=10`)
+  - two groups of 5 with strong within-cluster positive correlation and weaker or negative between-cluster correlation
+  - again, specify the target covariance/correlation pattern first, then derive a valid factor matrix
+
+- case I:
+  - not appropriate as currently phrased for this trainer/demo stress task
+  - replace with "rank-deficient covariance / duplicate-asset-style case" only if we later want an oracle validation task, not a normal pipeline-stress task
+
+One practical caution:
+- `n_risky=10` is probably still feasible for a tiny stress test, but we should keep `n_steps`, `n_updates`, and `n_outer_iters` very small so the suite does not bloat.
+
+So the updated next-task direction I would send to Claude is:
+- include F/G/H as valid correlated multi-asset GBM stress cases
+- express them via valid covariance targets and corresponding factor matrices
+- exclude case I from this phase
+
+If that matches your intent, I can now convert the whole thing into the final bounded Phase 16B task block and issue it to Claude.
+
+[Ricky | 2026-03-28 16:02:00 EDT]
+- change case I to a multi-asset case where multiple assets have volatilities that are close to zero.
+
+[Codex | 2026-03-28 16:02:00 EDT]
+That replacement makes sense and fits this phase better.
+
+Updated case I:
+- case I: near-deterministic low-volatility multi-asset case
+  - use multiple assets with volatilities close to zero, while still positive
+  - example:
+    - `mu=[0.02, 0.025, 0.03, 0.015, 0.02]`
+    - choose a valid factor matrix `sigma` whose implied per-asset volatilities are very small, e.g. on the order of `1e-4` to `1e-3`
+  - intent:
+    - test that the trainer/demo pipeline remains numerically stable when stochasticity is extremely weak
+    - cover the regime where trajectories are almost deterministic rather than highly diffusive
+
+I would keep the implementation guidance the same:
+- define the intended volatility/correlation structure first
+- then build a valid factor matrix `sigma`
+- keep runtime small even for the larger multi-asset cases
+
+So the updated expanded case list is now:
+- A: baseline single-asset sanity
+- B: low initial wealth
+- C: very small drift with large volatility
+- D: adverse drift with large volatility
+- E: correlated 2-asset case
+- F: strongly positively correlated assets (`n_risky=5`)
+- G: negatively correlated assets (`n_risky=5`)
+- H: two-cluster correlated assets (`n_risky=10`)
+- I: near-deterministic low-volatility multi-asset case
+
+If you want, I can now convert this final version into the normal bounded Phase 16B task block for Claude.
+
+[Ricky | 2026-03-28 16:06:00 EDT]
+- Ok, issue the task to claude
+
+[Codex | 2026-03-28 16:06:56 EDT]
+Phase 16B — trainer/demo pipeline stress-case coverage
+
+Goal:
+- Add bounded integration-style stress coverage for the current trainer/demo pipeline across a broader set of valid GBM parameter regimes, including correlated multi-asset cases and a near-deterministic low-volatility regime.
+
+Interpret "main pipeline" as:
+- `GaussianActor`
+- `QuadraticCritic`
+- `GBMPortfolioEnv`
+- `CTRLTrainerState.run_outer_loop(...)`
+- and only if it stays tiny and clearly useful, one smoke-style check for `scripts/run_ctrl_demo.py`
+
+Why this is next:
+- the repo now has stronger eval and backtest coverage
+- the next high-value confidence gain is broader end-to-end trainer/demo stress coverage across valid market regimes
+- this uses the existing pipeline rather than extending infrastructure again
+
+Scope:
+- directly related tests under `tests/unit/` or `tests/regression/`
+- tiny test-only helpers as needed
+- minimal production changes only if a real robustness bug is exposed
+- allowed touch points if needed: `src/train/`, `src/envs/`, `scripts/run_ctrl_demo.py`
+- do not expand `src/eval/`, `src/backtest/`, plotting/report layers, config-dispatch wiring, or experiment orchestration
+
+Required deliverables:
+- one new bounded test module for trainer/demo stress coverage
+- a compact parameterized matrix of pipeline stress cases covering at least the following regimes:
+  - case A: baseline single-asset sanity case
+  - case B: low initial wealth
+  - case C: very small drift with large volatility
+  - case D: adverse drift with large volatility
+  - case E: correlated 2-asset case
+  - case F: strongly positively correlated assets (`n_risky=5`)
+  - case G: negatively correlated assets (`n_risky=5`)
+  - case H: two-cluster correlated assets (`n_risky=10`)
+  - case I: near-deterministic low-volatility multi-asset case
+- at least one case where wealth becomes very small but remains positive and the pipeline still completes with finite scalar outputs
+
+Important parameterization note:
+- in this repo, `sigma` is a volatility-factor / loading matrix
+- the implied covariance is `sigma @ sigma.T`
+- for correlated cases, define the intended covariance / correlation structure and then construct a valid factor matrix `sigma`
+- do not treat `sigma` itself as the covariance matrix unless that happens to be the exact factorization you intentionally choose
+
+Concrete case guidance:
+- case A:
+  - `mu=[0.08]`
+  - `sigma=[[0.20]]`
+  - `initial_wealth=1.0`
+- case B:
+  - `mu=[0.08]`
+  - `sigma=[[0.20]]`
+  - `initial_wealth=0.05`
+- case C:
+  - `mu=[0.005]`
+  - `sigma=[[0.80]]`
+  - `initial_wealth=1.0`
+- case D:
+  - `mu=[-0.20]`
+  - `sigma=[[0.60]]`
+  - `initial_wealth=1.0`
+- case E:
+  - correlated 2-asset case
+  - one acceptable example is:
+    - `mu=[0.03, 0.04]`
+    - `sigma=[[0.30, 0.00], [0.18, 0.24]]`
+- case F:
+  - strongly positively correlated assets, `n_risky=5`
+  - equal drifts such as `mu=[0.03] * 5`
+  - use a valid factor matrix whose implied covariance has strong positive cross-asset correlation
+- case G:
+  - negatively correlated assets, `n_risky=5`
+  - use a valid factor matrix whose implied covariance yields negative cross-asset relationships where feasible
+- case H:
+  - two clusters, `n_risky=10`
+  - two groups of 5 with strong within-cluster positive correlation and weaker or negative between-cluster correlation
+- case I:
+  - near-deterministic low-volatility multi-asset case
+  - e.g. drifts in a modest positive range and implied per-asset volatilities on the order of `1e-4` to `1e-3`
+
+Testing requirements:
+- keep runtime small
+- prefer tiny `n_steps`, `n_updates`, and `n_outer_iters`
+- tests must assert concrete pipeline invariants, not just "does not crash"
+- for each stress case, verify at least:
+  - run completes
+  - snapshot scalar fields are finite
+  - history length / outer-iteration count is correct
+  - no NaN / inf appears in the returned scalar state
+- include at least one repeated-run determinism test on a nontrivial stress case
+- include at least one explicit check that a very-small-wealth regime still produces finite outputs
+- if you add correlated multi-asset helper builders, keep them test-local unless a production move is clearly justified
+
+Preferred narrow implementation:
+- start with tests only
+- only patch production code if the new tests expose a real robustness issue
+- if production changes are needed, keep them minimal and local
+
+Explicitly in scope:
+- trainer/demo pipeline stress tests
+- broader valid-GBM parameter coverage
+- correlated multi-asset pipeline coverage
+- near-collapse but still positive wealth coverage
+- near-deterministic low-volatility coverage
+
+Explicitly out of scope:
+- literal zero-price GBM cases
+- synthetic fault injection
+- new environment families
+- jump-diffusion, bankruptcy/default models, or alternate market models
+- experiment runner orchestration
+- report generation
+- more eval/backtest wrappers
+
+Stop conditions:
+- stop if this starts turning into a new market-model project rather than bounded tests
+- stop if the cleanest path becomes a broad trainer refactor
+- stop if runtime grows enough that the new module is no longer a small stress-coverage layer
+
+Verification required in `.venv`:
+- direct pytest command for the new module
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- if `scripts/run_ctrl_demo.py` gets dedicated coverage, include that direct test command explicitly
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+- if you add a regression module instead of a unit module, include its direct pytest command explicitly
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-28 16:13:55 EDT]
+Verification request:
+- Task completed: Phase 16B — Trainer/demo pipeline stress tests
+- Files changed: tests/unit/test_trainer_stress.py (new)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_trainer_stress.py -q --tb=short` → 12 passed in 2.70s
+  - `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` → 222 passed in 3.43s
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 749 passed in 4.00s
+- Known risks / open questions:
+  - None. All 9 parametric cases (A–I) pass, determinism test confirms identical scalar outputs across repeated seeded runs, history-length test confirms exact n_outer_iters × n_updates accounting.
+  - Near-deterministic Case I (sigma ≈ 1e-3) passes without any special handling — GBMPortfolioEnv and the actor/critic are numerically stable in this regime.
+  - 10-asset Case H (two-cluster _SIGMA_H, _make_sigma_h()) passes cleanly. PD structure verified by construction (a=0.25, x=-0.05, e=0.08).
+- Requesting review from: Codex

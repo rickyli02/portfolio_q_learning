@@ -219,6 +219,59 @@ def test_oracle_bundle_with_target_terminal_gap_is_correct():
 
 
 # ===========================================================================
+# Oracle bundle aggregate — exact from independent run_oracle_episode calls
+# ===========================================================================
+
+
+def test_oracle_bundle_aggregate_matches_manual_aggregate_no_target():
+    """Oracle aggregate fields match manually computed values from direct oracle rollouts."""
+    actor = _make_actor()
+    env = _make_env()
+    oracle = _make_oracle()
+    seeds = [0, 1, 2, 3]
+
+    result = run_ctrl_oracle_comparison(actor, env, w=1.0, oracle_policy=oracle, seeds=seeds)
+
+    # Build reference independently from raw oracle episodes
+    ref_tws = [float(run_oracle_episode(oracle, env, seed=s)["wealth_path"][-1]) for s in seeds]
+    n = len(ref_tws)
+    expected_mean = sum(ref_tws) / n
+    expected_min = min(ref_tws)
+    expected_max = max(ref_tws)
+
+    agg = result.oracle_bundle.aggregate
+    assert agg.n_episodes == n
+    assert agg.mean_terminal_wealth == pytest.approx(expected_mean, rel=1e-6)
+    assert agg.min_terminal_wealth == pytest.approx(expected_min, rel=1e-6)
+    assert agg.max_terminal_wealth == pytest.approx(expected_max, rel=1e-6)
+    assert agg.mean_terminal_gap is None
+    assert agg.target_hit_rate is None
+
+
+def test_oracle_bundle_aggregate_matches_manual_aggregate_with_target():
+    """Oracle aggregate target fields match manually computed values."""
+    actor = _make_actor()
+    env = _make_env()
+    oracle = _make_oracle()
+    seeds = [0, 1, 2, 3]
+    z = 1.1
+
+    result = run_ctrl_oracle_comparison(
+        actor, env, w=1.0, oracle_policy=oracle, seeds=seeds, target_return_z=z
+    )
+
+    ref_tws = [float(run_oracle_episode(oracle, env, seed=s)["wealth_path"][-1]) for s in seeds]
+    n = len(ref_tws)
+    expected_mean_gap = sum(tw - z for tw in ref_tws) / n
+    expected_hit_rate = sum(1 for tw in ref_tws if tw >= z) / n
+
+    agg = result.oracle_bundle.aggregate
+    assert agg.n_episodes == n
+    assert agg.mean_terminal_gap == pytest.approx(expected_mean_gap, rel=1e-6)
+    assert agg.target_hit_rate == pytest.approx(expected_hit_rate, rel=1e-6)
+
+
+# ===========================================================================
 # Comparison summary — exact from manually computed deltas
 # ===========================================================================
 
