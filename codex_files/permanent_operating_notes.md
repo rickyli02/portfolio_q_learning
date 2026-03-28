@@ -1,6 +1,6 @@
 ## Codex Permanent Operating Notes
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 Owner: Codex
 
 ### Role
@@ -35,6 +35,8 @@ Owner: Codex
 - Require explicit stop conditions for non-trivial Claude tasks.
 - Require Claude to post a verification-request entry after finishing a bounded task block when review is required.
 - Require Claude to post a stop-event entry immediately when a stop condition is triggered.
+- If a task adds a new dedicated unit-test file, require Claude's verification request to list that file's direct pytest command explicitly, not just the broader `tests/unit` command.
+- If the repo has already completed several consecutive infrastructure-only phases in one layer, require the next task-assignment to justify why another extension is needed instead of moving to a consumer workflow.
 
 ### Generic Stop Conditions For Claude
 
@@ -50,6 +52,8 @@ Owner: Codex
 
 - When the project moves into a new phase, create a phase-specific reference note under `references/`.
 - Move stale or superseded reference notes into `references/archive/` when they are no longer active.
+- Refresh current-state docs when a long run of bounded phases materially changes the repo surface.
+- In particular, keep `shared_agent_files/dialogue.txt`, `shared_agent_files/claude_code_todo.md`, and Codex memory notes synchronized with the actual approved repo state rather than letting them lag by multiple phases.
 
 ### Memory and Notes
 
@@ -62,3 +66,5 @@ Owner: Codex
 - Prevent offline and online training paths from diverging before shared schemas are defined.
 - Fix small infrastructure issues early when they affect reproducibility or logging behavior.
 - Treat cloud-synced virtual environments as a reproducibility and performance risk; keep `.venv/` local, rebuildable, and out of normal iCloud syncing/indexing paths.
+- Avoid overextending infrastructure layers without a consumer.
+- After a foundation layer is clearly complete enough to use, bias subsequent tasking toward consuming it in a real workflow before adding more wrappers or persistence helpers around the same layer.

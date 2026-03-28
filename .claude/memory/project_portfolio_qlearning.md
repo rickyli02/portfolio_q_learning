@@ -1,6 +1,6 @@
 # Project Memory: portfolio_q_learning
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 
 ## Current implementation state
 
@@ -32,18 +32,24 @@ Last updated: 2026-03-27
 - Phase 14A in-memory trainer logging record foundation: approved
 - Phase 14B trainer log file IO foundation: approved
 - Phase 15A deterministic evaluation summary foundation: approved
-- Active bounded task: Phase 15B evaluation summary file IO foundation
+- Phase 15B evaluation summary file IO foundation: approved
+- Phase 15C multi-episode deterministic aggregate: approved
+- Phase 15D evaluation aggregate file IO: approved
+- Phase 15E deterministic evaluation trajectory record: approved
+- Phase 15F evaluation record file IO: approved
+- Phase 15G multi-seed deterministic record set: approved
+- Phase 15H evaluation record-set file IO: approved
+- Phase 15I pure derivation helpers (summary_from_record, aggregate_from_record_set): approved
+- Phase 15J typed scalar bundle (CTRLEvalScalarBundle, bundle_from_record_set): approved
+- Phase 15K scalar-bundle file IO (save/load_eval_bundles): approved
+- Active bounded task: pending Codex next assignment
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `555 passed`
-- `tests/unit/test_ctrl_trainer.py -q` has reached `222 passed`
-- `tests/unit/test_eval_summary.py -q` has reached `14 passed`
+- `tests/unit -q` has reached `722 passed`
 - `scripts/run_smoke_test.py` has reached `8/8 passed`
 - long-verification artifacts exist under `outputs/verification/`
-- subprocess-isolated import timing normalized after recreating `.venv` locally:
-  - `numpy ~= 0.069s`
-  - `torch ~= 0.859s`
+- subprocess-isolated import timing normalized after recreating `.venv` locally
 
 ## Active implementation direction
 
@@ -52,8 +58,9 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - extend the evaluation layer in bounded, testable slices
-  - keep file IO / logging / checkpoint / evaluation work narrow and staged rather than opening full experiment infrastructure at once
+  - eval infrastructure (15A–15K) is now complete
+  - next natural step: consume the eval infra — connect to training loop, populate src/backtest/, run end-to-end CTRL vs oracle comparison
+  - `src/backtest/__init__.py` is still a stub; this is the next major open module
 
 ## Stable decisions
 

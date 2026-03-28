@@ -1,6 +1,6 @@
 ## Repo Design Memory
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 Owner: Codex
 
 ### Constraint behavior decisions
@@ -87,3 +87,24 @@ Owner: Codex
     - `.venv/bin/python -m pip`
     - `.venv/bin/python3 -m pip`
 - Do not require a symlink-normalization step just to standardize command names.
+
+### Evaluation-layer sequencing decision
+
+- The Phase 15 eval stack is now deep enough to consume directly:
+  - summaries
+  - aggregates
+  - path records
+  - multi-seed record sets
+  - scalar derivation helpers
+  - scalar bundles
+  - file IO for all of the above
+- Strategic conclusion from the 2026-03-28 review:
+  - additional eval-layer wrappers or persistence helpers should no longer be the default next step
+  - the next high-value work should consume this stack in a real workflow
+- Preferred next-consumer directions:
+  - populate `src/backtest/` with a narrow CTRL-vs-oracle comparison seam
+  - add an end-to-end experiment/evaluation script under `scripts/`
+  - connect trainer output to evaluation/oracle comparison in a bounded post-run flow
+- Rationale:
+  - Phases 15E-15K were technically sound but had no in-repo consumer yet
+  - the value of saved records/record-sets/bundles is only realized once something loads them and produces comparison output or downstream analysis

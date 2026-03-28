@@ -37,6 +37,10 @@ but they are easy to forget if they live only in `shared_agent_files/dialogue.tx
   - Current state: Phase 15E intentionally kept `CTRLEvalRecord` mutable and returns wrapped tensors directly; review approved this as non-blocking.
   - Impact: later code should not assume record payloads are immutable until this boundary is revisited.
 
+- Decide later whether `CTRLEvalRecordSet` / `CTRLEvalScalarBundle` should also be hardened against mutation or documented more explicitly as mutable transport containers.
+  - Current state: review accepted the current minimal container behavior as non-blocking.
+  - Impact: future consumer code should not assume immutable container payloads unless the contract is tightened deliberately.
+
 ## Resolved notes
 
 - Duplicate `config-dispatch wiring` bullet in `src/train/ctrl_state.py` docstring.

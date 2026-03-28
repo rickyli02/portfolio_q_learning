@@ -8,7 +8,7 @@ This file should be treated as an implementation roadmap, not a paper note.
 
 ## Current snapshot
 
-As of 2026-03-27:
+As of 2026-03-28:
 
 - Phase 1 scaffold exists.
 - Phase 2 config/data foundation exists.
@@ -39,38 +39,60 @@ As of 2026-03-27:
 - Phase 14A in-memory trainer logging record foundation is approved.
 - Phase 14B trainer log file IO foundation is approved.
 - Phase 15A deterministic evaluation summary foundation is approved.
+- Phase 15B evaluation summary file IO foundation is approved.
+- Phase 15C multi-episode deterministic evaluation aggregate foundation is approved.
+- Phase 15D evaluation aggregate file IO foundation is approved.
+- Phase 15E deterministic evaluation trajectory record foundation is approved.
+- Phase 15F evaluation record file IO foundation is approved.
+- Phase 15G multi-seed deterministic evaluation record set foundation is approved.
+- Phase 15H evaluation record-set file IO foundation is approved.
+- Phase 15I pure record-to-scalar derivation helpers are approved.
+- Phase 15J typed scalar bundle foundation is approved.
+- Phase 15K scalar-bundle file IO foundation is approved.
 - Latest verified outputs with current repo state are:
-  - model-focused verification:
-    - `tests/unit/test_models.py -q -> 49 passed`
-  - current full unit-suite verification:
-    - `tests/unit -q -> 555 passed`
-  - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 222 passed`
   - current evaluation-summary verification:
-    - `tests/unit/test_eval_summary.py -q -> 14 passed`
-  - current smoke verification:
+    - `tests/unit/test_eval_summary.py -q -> 65 passed`
+  - current record IO verification:
+    - `tests/unit/test_eval_record_io.py -q -> 33 passed`
+  - current record-set verification:
+    - `tests/unit/test_eval_record_set.py -q -> 12 passed`
+  - current record-set IO verification:
+    - `tests/unit/test_eval_record_set_io.py -q -> 24 passed`
+  - current scalar-derivation verification:
+    - `tests/unit/test_eval_derive.py -q -> 14 passed`
+  - current scalar-bundle verification:
+    - `tests/unit/test_eval_bundle.py -q -> 11 passed`
+  - current full unit-suite verification:
+    - `tests/unit -q -> 722 passed`
+  - latest directly confirmed smoke remains older:
     - `scripts/run_smoke_test.py -> 8/8 passed`
-  - current long-verification artifacts:
-    - `outputs/verification/2026-03-27_141812_verification.txt`
-    - `outputs/verification/2026-03-27_143247_verification.txt`
   - current normalized import-timing artifact:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 15B evaluation summary file IO foundation
-- The active RL implementation target is now:
+  - Phase 15K is approved; Claude is paused pending the next bounded task
+- The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
   - Huang–Jia–Zhou (2022) / 2025 practical online improvements after baseline stability
 - Wang–Zhou (2019/2020) remains a mathematical and derivational reference, not a required implementation layer.
-- Plotting and visualization remain required implementation tasks, and the config schema now includes `PlottingConfig` for YAML-driven plotting preferences.
-- The config schema now also includes algorithm selection via `AlgorithmConfig`.
+- Plotting and visualization remain required implementation tasks, and the config schema already includes `PlottingConfig` for YAML-driven plotting preferences.
+- The config schema also includes algorithm selection via `AlgorithmConfig`.
+- Strategic sequencing update from the 2026-03-28 review:
+  - do not keep extending the eval layer by default
+  - prefer the next bounded tasks to consume the approved eval stack in a real workflow
+  - highest-value next directions are:
+    - populate `src/backtest/`
+    - connect training output to evaluation/oracle comparison
+    - add an end-to-end experiment/evaluation script
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
   - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
   - add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state beyond simple SGD
   - decide later whether smoke should assert specific CTRL demo summary markers rather than only successful completion
+- Process reminder:
+  - when a bounded task adds a new dedicated test file, Claude's verification request should explicitly list that file's direct pytest command rather than relying only on `tests/unit`
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
