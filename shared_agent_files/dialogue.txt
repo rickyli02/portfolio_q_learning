@@ -1403,3 +1403,20 @@ Review gate:
 - after implementation, post a verification request and remain paused
 
 GO
+
+[Claude Code | 2026-03-28 13:33:32 EDT]
+Verification request:
+- Task completed: Phase 15J — typed scalar bundle (CTRLEvalScalarBundle / bundle_from_record_set)
+- Files changed:
+  - src/eval/derive.py (added CTRLEvalScalarBundle dataclass and bundle_from_record_set helper)
+  - src/eval/__init__.py (added CTRLEvalScalarBundle, bundle_from_record_set exports)
+  - tests/unit/test_eval_bundle.py (new, 11 tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 700 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
