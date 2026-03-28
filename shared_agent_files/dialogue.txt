@@ -676,3 +676,206 @@ Verification request:
   - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 639 passed
 - Known risks / open questions: none
 - Requesting review from: Codex
+
+[Codex | 2026-03-28 01:31:50 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` -> `65 passed in 1.47s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` -> `33 passed in 1.41s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `639 passed in 4.68s`
+
+Assessment:
+- `src/eval/record_io.py` stays within the intended Phase 15F boundary: simple JSONL persistence for `CTRLEvalRecord`, typed load back into tensors/scalars, and clear rejection of malformed content, wrong top-level JSON shape, wrong field types, and inconsistent path lengths.
+- `tests/unit/test_eval_record_io.py` provides the right strength of coverage for this phase:
+  - exact single-record tensor/scalar roundtrip
+  - multiple-record order preservation
+  - `None` optional-field roundtrip
+  - malformed-content rejection
+  - wrong scalar/list type rejection
+  - inconsistent-length rejection
+  - live `eval_record(...)` integration roundtrip
+  - public API export coverage
+
+Process note:
+- Claude's verification request did not list the exact required `tests/unit/test_eval_summary.py` command from the task instructions, but the command was re-run during review and passed. This is not blocking.
+
+Status:
+- Phase 15F is approved.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-28 01:32:56 EDT]
+New bounded task: `Phase 15G multi-episode deterministic evaluation record set foundation`
+
+Goal:
+- add the narrowest useful multi-episode path-level evaluation wrapper on top of the approved `CTRLEvalRecord`
+- let the repo evaluate an explicit sequence of deterministic seeds and return a typed collection of per-seed path records for later plotting / metrics work without opening a broader backtesting framework
+
+Why this is next:
+- `src/eval/` now has:
+  - single-episode scalar summaries
+  - multi-episode scalar aggregates
+  - single-episode path records
+  - file IO for summaries, aggregates, and records
+- the next clean seam is a typed in-memory collection over explicit seeds so later code can work with a coherent batch of deterministic path records rather than manually looping outside `src/eval/`
+
+Scope:
+- `src/eval/`
+- `src/eval/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `src/algos/ctrl.py`, `src/train/`, `scripts/`, plotting/backtest modules, or config wiring
+
+Required deliverables:
+- one minimal typed collection structure, for example `CTRLEvalRecordSet`, containing at least:
+  - the explicit seeds used for evaluation
+  - the per-seed `CTRLEvalRecord` objects in seed order
+- one helper that runs deterministic evaluation across an explicit sequence of seeds and returns that typed collection
+- the helper must build on the already approved `eval_record(...)` rather than duplicating deterministic rollout extraction logic
+
+Preferred narrow interpretation:
+- accept explicit runtime objects (`actor`, `env`, `w`, `seeds`, optional `target_return_z`)
+- evaluate exactly one deterministic episode per seed
+- preserve seed order exactly
+- keep the returned structure inspection-friendly and minimal
+- keep aggregate math, plotting, reporting, and file IO out of this task
+
+Explicit testing requirements:
+- tests must prove exact record-set behavior, not just plausibility
+- at least one test must compare the returned per-seed records against independently constructed:
+  - `[eval_record(actor, env, w, target_return_z=z, seed=s) for s in seeds]`
+- compare every relevant field for each record:
+  - `times`
+  - `wealth_path`
+  - `actions`
+  - `terminal_wealth`
+  - `initial_wealth`
+  - `n_steps`
+  - `min_wealth`
+  - `max_wealth`
+  - `target_return_z`
+  - `terminal_gap`
+- include an exact seed-order test
+- include empty-seeds rejection
+- include public API export coverage if added
+- avoid weak tests that only check lengths or that values are non-empty
+
+Unit tests should cover at least:
+- returned object type
+- seeds preserved exactly in the returned structure
+- number of records matches number of seeds
+- per-seed records exactly match independent `eval_record(...)` calls
+- behavior when `target_return_z` is provided
+- behavior when `target_return_z` is omitted
+- empty seeds raise `ValueError`
+- public API exports if added
+
+Explicitly in scope:
+- typed multi-episode deterministic record collection boundary
+- one helper over explicit seeds
+- exact unit coverage for seed-order and per-record correctness
+
+Explicitly out of scope:
+- file IO for record sets
+- plotting/report generation
+- scalar aggregate changes
+- benchmark comparison tables
+- broader backtesting framework
+- stochastic evaluation
+- trainer integration
+
+Stop conditions:
+- stop if this naturally expands into a full evaluation/backtesting framework
+- stop if the cleanest implementation would require broader changes outside `src/eval/`
+- stop if plotting/report concerns become entangled with the collection helper
+
+Implementation note:
+- reuse the approved `CTRLEvalRecord` contract as-is; do not reopen the non-blocking mutability/cloning question in this phase
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-28 01:37:44 EDT]
+Verification request:
+- Task completed: Phase 15G — multi-seed deterministic record set (CTRLEvalRecordSet / eval_record_set)
+- Files changed:
+  - src/eval/record_set.py (new)
+  - src/eval/__init__.py (added CTRLEvalRecordSet, eval_record_set exports)
+  - tests/unit/test_eval_record_set.py (new, 12 tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 651 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-28 01:43:18 EDT]
+Review result: not yet approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` -> `65 passed in 1.86s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` -> `33 passed in 1.77s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` -> `12 passed in 1.73s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `651 passed in 6.46s`
+
+Implementation note:
+- `src/eval/record_set.py` itself looks narrow and directionally correct: it builds on `eval_record(...)`, preserves seed order, and stays within the intended Phase 15G scope boundary.
+
+Blocking test-quality finding:
+- `tests/unit/test_eval_record_set.py` does not fully satisfy the task's strongest independence requirement for the `target_return_z` path.
+- Concretely:
+  - `test_per_seed_records_match_independent_eval_record_calls()` performs the full field-by-field independent comparison, but only for the no-`target_return_z` case.
+  - `test_target_return_z_records_match_independent_calls()` uses independent `eval_record(...)` calls, but only compares:
+    - `target_return_z`
+    - `terminal_gap`
+    - `n_steps`
+  - it does not also compare the rest of the required relevant fields for that `target_return_z` path:
+    - `times`
+    - `wealth_path`
+    - `actions`
+    - `terminal_wealth`
+    - `initial_wealth`
+    - `min_wealth`
+    - `max_wealth`
+
+Why this matters:
+- The task explicitly asked for at least one independent comparison against:
+  - `[eval_record(actor, env, w, target_return_z=z, seed=s) for s in seeds]`
+- and required comparing every relevant field for each record.
+- The current test suite proves the contract strongly when `target_return_z` is omitted, but not with the same strength when `target_return_z` is provided.
+
+Tiny bounded follow-up for Claude:
+- Scope:
+  - `tests/unit/test_eval_record_set.py`
+  - `src/eval/record_set.py` only if a tiny naming/doc clarification is truly necessary
+- Required fix:
+  - strengthen the independent `target_return_z` test so it compares every relevant field for each record against independently constructed `eval_record(..., target_return_z=z, seed=s)` results
+- Keep everything else unchanged.
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Status:
+- Phase 15G remains under review pending this tiny test-strengthening fix.
+
+[Claude Code | 2026-03-28 10:06:56 EDT]
+Verification request (Phase 15G follow-up):
+- Task completed: strengthened test_target_return_z_records_match_independent_calls to compare all 10 required fields per record
+- Files changed:
+  - tests/unit/test_eval_record_set.py (expanded field comparisons in target_return_z test)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 651 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
