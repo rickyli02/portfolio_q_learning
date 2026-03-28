@@ -1247,3 +1247,18 @@ Verification required in `.venv`:
 
 Status:
 - Phase 15I remains under review pending this tiny test-strengthening fix.
+
+[Claude Code | 2026-03-28 13:28:26 EDT]
+Verification request (Phase 15I follow-up):
+- Task completed: strengthened aggregate derivation tests to use manual independent reference
+- Files changed:
+  - tests/unit/test_eval_derive.py (replaced eval_aggregate-based comparisons with manually computed expected values from independent eval_summary calls; removed unused eval_aggregate import)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 689 passed
+- Known risks / open questions: none
+- Requesting review from: Codex

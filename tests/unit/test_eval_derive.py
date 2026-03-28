@@ -10,7 +10,6 @@ from src.eval import (
     CTRLEvalAggregate,
     CTRLEvalSummary,
     aggregate_from_record_set,
-    eval_aggregate,
     eval_record,
     eval_record_set,
     eval_summary,
@@ -181,21 +180,28 @@ def test_aggregate_from_record_set_summaries_in_seed_order():
 # ===========================================================================
 
 
-def test_aggregate_from_record_set_matches_eval_aggregate_no_target():
-    """aggregate_from_record_set aggregate matches eval_aggregate field-by-field (no target)."""
+def test_aggregate_from_record_set_matches_manual_aggregate_no_target():
+    """aggregate_from_record_set matches a manually computed aggregate (no target)."""
     actor = _make_actor()
     env = _make_env()
     seeds = [0, 1, 2, 3]
     w = 1.0
 
+    # Independent reference: manually build summaries and compute aggregate fields.
+    ref_summaries = [eval_summary(actor, env, w=w, seed=s) for s in seeds]
+    ref_tws = [s.terminal_wealth for s in ref_summaries]
+    n = len(ref_summaries)
+    expected_mean = sum(ref_tws) / n
+    expected_min = min(ref_tws)
+    expected_max = max(ref_tws)
+
     rs = eval_record_set(actor, env, w=w, seeds=seeds)
     _, derived_agg = aggregate_from_record_set(rs)
-    _, reference_agg = eval_aggregate(actor, env, w=w, seeds=seeds)
 
-    assert derived_agg.n_episodes == reference_agg.n_episodes
-    assert derived_agg.mean_terminal_wealth == pytest.approx(reference_agg.mean_terminal_wealth, rel=1e-6)
-    assert derived_agg.min_terminal_wealth == pytest.approx(reference_agg.min_terminal_wealth, rel=1e-6)
-    assert derived_agg.max_terminal_wealth == pytest.approx(reference_agg.max_terminal_wealth, rel=1e-6)
+    assert derived_agg.n_episodes == n
+    assert derived_agg.mean_terminal_wealth == pytest.approx(expected_mean, rel=1e-6)
+    assert derived_agg.min_terminal_wealth == pytest.approx(expected_min, rel=1e-6)
+    assert derived_agg.max_terminal_wealth == pytest.approx(expected_max, rel=1e-6)
     assert derived_agg.mean_terminal_gap is None
     assert derived_agg.target_hit_rate is None
 
@@ -205,24 +211,34 @@ def test_aggregate_from_record_set_matches_eval_aggregate_no_target():
 # ===========================================================================
 
 
-def test_aggregate_from_record_set_matches_eval_aggregate_with_target():
-    """aggregate_from_record_set aggregate matches eval_aggregate field-by-field (with target)."""
+def test_aggregate_from_record_set_matches_manual_aggregate_with_target():
+    """aggregate_from_record_set matches a manually computed aggregate (with target)."""
     actor = _make_actor()
     env = _make_env()
     seeds = [0, 5, 10, 15]
     w = 1.0
     z = 1.1
 
+    # Independent reference: manually build summaries and compute aggregate fields.
+    ref_summaries = [eval_summary(actor, env, w=w, target_return_z=z, seed=s) for s in seeds]
+    ref_tws = [s.terminal_wealth for s in ref_summaries]
+    ref_gaps = [s.terminal_gap for s in ref_summaries]
+    n = len(ref_summaries)
+    expected_mean = sum(ref_tws) / n
+    expected_min = min(ref_tws)
+    expected_max = max(ref_tws)
+    expected_mean_gap = sum(ref_gaps) / n  # type: ignore[arg-type]
+    expected_hit_rate = sum(1 for tw in ref_tws if tw >= z) / n
+
     rs = eval_record_set(actor, env, w=w, seeds=seeds, target_return_z=z)
     _, derived_agg = aggregate_from_record_set(rs)
-    _, reference_agg = eval_aggregate(actor, env, w=w, seeds=seeds, target_return_z=z)
 
-    assert derived_agg.n_episodes == reference_agg.n_episodes
-    assert derived_agg.mean_terminal_wealth == pytest.approx(reference_agg.mean_terminal_wealth, rel=1e-6)
-    assert derived_agg.min_terminal_wealth == pytest.approx(reference_agg.min_terminal_wealth, rel=1e-6)
-    assert derived_agg.max_terminal_wealth == pytest.approx(reference_agg.max_terminal_wealth, rel=1e-6)
-    assert derived_agg.mean_terminal_gap == pytest.approx(reference_agg.mean_terminal_gap, rel=1e-6)  # type: ignore[arg-type]
-    assert derived_agg.target_hit_rate == pytest.approx(reference_agg.target_hit_rate, rel=1e-6)  # type: ignore[arg-type]
+    assert derived_agg.n_episodes == n
+    assert derived_agg.mean_terminal_wealth == pytest.approx(expected_mean, rel=1e-6)
+    assert derived_agg.min_terminal_wealth == pytest.approx(expected_min, rel=1e-6)
+    assert derived_agg.max_terminal_wealth == pytest.approx(expected_max, rel=1e-6)
+    assert derived_agg.mean_terminal_gap == pytest.approx(expected_mean_gap, rel=1e-6)
+    assert derived_agg.target_hit_rate == pytest.approx(expected_hit_rate, rel=1e-6)
 
 
 def test_aggregate_from_record_set_target_related_fields_none_when_no_target():
