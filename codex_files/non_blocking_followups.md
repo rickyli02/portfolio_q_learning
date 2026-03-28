@@ -1,6 +1,6 @@
 # Non-Blocking Follow-Ups
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 Owner: Codex
 
 This file tracks review notes that were explicitly judged non-blocking during
@@ -32,6 +32,10 @@ but they are easy to forget if they live only in `shared_agent_files/dialogue.tx
 - Add concrete memory-pressure capture guidance when logging/plotting infrastructure is implemented.
   - Current state: already listed in roadmap docs, but not yet turned into a bounded task.
   - Impact: useful for scaling future trainer/evaluation runs.
+
+- Decide later whether `CTRLEvalRecord` should become immutable or defensively clone tensor payloads at construction/load boundaries.
+  - Current state: Phase 15E intentionally kept `CTRLEvalRecord` mutable and returns wrapped tensors directly; review approved this as non-blocking.
+  - Impact: later code should not assume record payloads are immutable until this boundary is revisited.
 
 ## Resolved notes
 

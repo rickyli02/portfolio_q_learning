@@ -6,12 +6,14 @@ Current primitives:
 - Phase 15C: multi-episode deterministic aggregate (``CTRLEvalAggregate``, ``eval_aggregate``).
 - Phase 15D: evaluation aggregate file IO helpers (``save_eval_aggregates``, ``load_eval_aggregates``).
 - Phase 15E: deterministic evaluation trajectory record (``CTRLEvalRecord``, ``eval_record``).
+- Phase 15F: evaluation record file IO helpers (``save_eval_records``, ``load_eval_records``).
 """
 
 from src.eval.aggregate import CTRLEvalAggregate, eval_aggregate
 from src.eval.aggregate_io import load_eval_aggregates, save_eval_aggregates
 from src.eval.io import load_eval_summaries, save_eval_summaries
 from src.eval.record import CTRLEvalRecord, eval_record
+from src.eval.record_io import load_eval_records, save_eval_records
 from src.eval.summary import CTRLEvalSummary, eval_summary
 
 __all__ = [
@@ -22,7 +24,9 @@ __all__ = [
     "eval_record",
     "eval_summary",
     "load_eval_aggregates",
+    "load_eval_records",
     "load_eval_summaries",
     "save_eval_aggregates",
+    "save_eval_records",
     "save_eval_summaries",
 ]
