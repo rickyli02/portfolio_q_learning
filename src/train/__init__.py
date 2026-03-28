@@ -11,13 +11,15 @@ Current primitives:
 - Phase 13B: in-memory checkpoint payload capture and restore (``CTRLCheckpointPayload``).
 - Phase 13C: checkpoint file IO helpers (``save_checkpoint``, ``load_checkpoint``).
 - Phase 14A: in-memory logging records (``CTRLLogRecord``, ``record_from_snapshot``, ``records_from_history``).
+- Phase 14B: log record file IO helpers (``save_log_records``, ``load_log_records``).
 
-Future phases will add checkpoint and logging infrastructure, config-dispatch
-wiring, and full offline/online trainer classes.  Those are not present yet.
+Future phases will add config-dispatch wiring and full offline/online trainer
+classes.  Those are not present yet.
 """
 
 from src.train.checkpoints import load_checkpoint, save_checkpoint
 from src.train.log_record import CTRLLogRecord, record_from_snapshot, records_from_history
+from src.train.logging import load_log_records, save_log_records
 from src.train.ctrl_outer_iter import CTRLOuterIterResult, ctrl_outer_iter
 from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
 from src.train.ctrl_runner import CTRLRunResult, ctrl_train_run
@@ -30,9 +32,11 @@ __all__ = [
     "CTRLLogRecord",
     "CTRLOuterIterResult",
     "load_checkpoint",
+    "load_log_records",
     "record_from_snapshot",
     "records_from_history",
     "save_checkpoint",
+    "save_log_records",
     "CTRLOuterLoopResult",
     "CTRLRunResult",
     "CTRLStepResult",

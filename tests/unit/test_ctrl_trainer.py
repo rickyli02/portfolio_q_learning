@@ -2252,3 +2252,161 @@ def test_phase14a_public_api_imports():
     assert callable(state.log_record)
     rec = state.log_record()
     assert isinstance(rec, CTRLLogRecord)
+
+
+# ===========================================================================
+# Phase 14B — trainer log record file IO foundation
+# ===========================================================================
+
+from src.train.logging import load_log_records, save_log_records
+
+
+def _make_record(
+    current_w: float = 1.5,
+    target_return_z: float = 1.2,
+    w_step_size: float = 0.01,
+    last_terminal_wealth: float | None = 1.1,
+    last_w_prev: float | None = 1.4,
+    last_n_updates: int | None = 5,
+) -> CTRLLogRecord:
+    return CTRLLogRecord(
+        current_w=current_w,
+        target_return_z=target_return_z,
+        w_step_size=w_step_size,
+        last_terminal_wealth=last_terminal_wealth,
+        last_w_prev=last_w_prev,
+        last_n_updates=last_n_updates,
+    )
+
+
+# --- single-record roundtrip ---
+
+def test_save_load_single_record_roundtrip(tmp_path):
+    """Save one record to disk and load it back; all fields match."""
+    rec = _make_record()
+    p = tmp_path / "log.jsonl"
+    save_log_records([rec], p)
+    loaded = load_log_records(p)
+    assert len(loaded) == 1
+    assert loaded[0].current_w == pytest.approx(rec.current_w)
+    assert loaded[0].target_return_z == pytest.approx(rec.target_return_z)
+    assert loaded[0].w_step_size == pytest.approx(rec.w_step_size)
+    assert loaded[0].last_terminal_wealth == pytest.approx(rec.last_terminal_wealth)
+    assert loaded[0].last_w_prev == pytest.approx(rec.last_w_prev)
+    assert loaded[0].last_n_updates == rec.last_n_updates
+
+
+# --- None optional fields roundtrip ---
+
+def test_save_load_none_optionals_roundtrip(tmp_path):
+    """Records with None optional fields survive the roundtrip as None."""
+    rec = _make_record(last_terminal_wealth=None, last_w_prev=None, last_n_updates=None)
+    p = tmp_path / "log_none.jsonl"
+    save_log_records([rec], p)
+    loaded = load_log_records(p)
+    assert loaded[0].last_terminal_wealth is None
+    assert loaded[0].last_w_prev is None
+    assert loaded[0].last_n_updates is None
+
+
+# --- multiple-record roundtrip preserving order ---
+
+def test_save_load_multiple_records_preserves_order(tmp_path):
+    """Multiple records are saved and loaded in their original order."""
+    recs = [_make_record(current_w=float(i)) for i in range(5)]
+    p = tmp_path / "log_multi.jsonl"
+    save_log_records(recs, p)
+    loaded = load_log_records(p)
+    assert len(loaded) == 5
+    for i, rec in enumerate(loaded):
+        assert rec.current_w == pytest.approx(float(i))
+
+
+# --- empty list roundtrip ---
+
+def test_save_load_empty_list(tmp_path):
+    """Saving an empty list produces a file that loads back as an empty list."""
+    p = tmp_path / "log_empty.jsonl"
+    save_log_records([], p)
+    loaded = load_log_records(p)
+    assert loaded == []
+
+
+# --- loaded entries are CTRLLogRecord instances ---
+
+def test_loaded_entries_are_log_record_instances(tmp_path):
+    """Each entry returned by load_log_records is a CTRLLogRecord."""
+    recs = [_make_record(), _make_record(current_w=2.0)]
+    p = tmp_path / "log_type.jsonl"
+    save_log_records(recs, p)
+    loaded = load_log_records(p)
+    assert all(isinstance(r, CTRLLogRecord) for r in loaded)
+
+
+# --- nonexistent path raises FileNotFoundError ---
+
+def test_load_nonexistent_path_raises(tmp_path):
+    """load_log_records raises FileNotFoundError for a nonexistent path."""
+    with pytest.raises(FileNotFoundError):
+        load_log_records(tmp_path / "does_not_exist.jsonl")
+
+
+# --- malformed content raises ValueError ---
+
+def test_load_malformed_json_raises(tmp_path):
+    """load_log_records raises ValueError when a line contains invalid JSON."""
+    p = tmp_path / "bad.jsonl"
+    p.write_text("not valid json\n")
+    with pytest.raises(ValueError, match="Malformed JSON"):
+        load_log_records(p)
+
+
+def test_load_missing_required_field_raises(tmp_path):
+    """load_log_records raises ValueError when a required field is absent."""
+    import json as _json
+    p = tmp_path / "missing_field.jsonl"
+    # omit current_w
+    p.write_text(
+        _json.dumps({"target_return_z": 1.2, "w_step_size": 0.01}) + "\n"
+    )
+    with pytest.raises(ValueError, match="Missing required field"):
+        load_log_records(p)
+
+
+# --- file is created / overwritten ---
+
+def test_save_overwrites_existing_file(tmp_path):
+    """save_log_records overwrites an existing file rather than appending."""
+    p = tmp_path / "log_overwrite.jsonl"
+    save_log_records([_make_record(current_w=1.0)], p)
+    save_log_records([_make_record(current_w=9.9)], p)
+    loaded = load_log_records(p)
+    assert len(loaded) == 1
+    assert loaded[0].current_w == pytest.approx(9.9)
+
+
+# --- integration: save trainer log records from history ---
+
+def test_save_load_records_from_trainer_history(tmp_path):
+    """Records derived from trainer history save and load with matching w values."""
+    from src.train.log_record import records_from_history
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=1)
+    recs = records_from_history(state.history)
+    p = tmp_path / "trainer_history.jsonl"
+    save_log_records(recs, p)
+    loaded = load_log_records(p)
+    assert len(loaded) == len(recs)
+    for orig, reloaded in zip(recs, loaded):
+        assert reloaded.current_w == pytest.approx(orig.current_w)
+        assert reloaded.last_n_updates == orig.last_n_updates
+
+
+# --- public API export ---
+
+def test_phase14b_public_api_imports():
+    """save_log_records and load_log_records are exported from src.train."""
+    from src.train import load_log_records as _load, save_log_records as _save
+    assert callable(_save)
+    assert callable(_load)
