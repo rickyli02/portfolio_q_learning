@@ -2410,3 +2410,67 @@ def test_phase14b_public_api_imports():
     from src.train import load_log_records as _load, save_log_records as _save
     assert callable(_save)
     assert callable(_load)
+
+
+# --- Phase 14B follow-up: scalar type validation ---
+
+def test_load_string_in_required_float_field_raises(tmp_path):
+    """load_log_records rejects a string value in a required float field."""
+    import json as _json
+    p = tmp_path / "bad_type.jsonl"
+    p.write_text(
+        _json.dumps({
+            "current_w": "not_a_number",
+            "target_return_z": 1.2,
+            "w_step_size": 0.01,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="current_w"):
+        load_log_records(p)
+
+
+def test_load_string_in_optional_float_field_raises(tmp_path):
+    """load_log_records rejects a string value in an optional float field."""
+    import json as _json
+    p = tmp_path / "bad_opt.jsonl"
+    p.write_text(
+        _json.dumps({
+            "current_w": 1.5,
+            "target_return_z": 1.2,
+            "w_step_size": 0.01,
+            "last_terminal_wealth": "bad",
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="last_terminal_wealth"):
+        load_log_records(p)
+
+
+def test_load_float_in_int_field_raises(tmp_path):
+    """load_log_records rejects a float value in the last_n_updates integer field."""
+    import json as _json
+    p = tmp_path / "bad_int.jsonl"
+    p.write_text(
+        _json.dumps({
+            "current_w": 1.5,
+            "target_return_z": 1.2,
+            "w_step_size": 0.01,
+            "last_n_updates": 3.5,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="last_n_updates"):
+        load_log_records(p)
+
+
+def test_load_bool_in_float_field_raises(tmp_path):
+    """load_log_records rejects a boolean in a required float field (bool is int subclass)."""
+    import json as _json
+    p = tmp_path / "bad_bool.jsonl"
+    p.write_text(
+        _json.dumps({
+            "current_w": True,
+            "target_return_z": 1.2,
+            "w_step_size": 0.01,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="current_w"):
+        load_log_records(p)

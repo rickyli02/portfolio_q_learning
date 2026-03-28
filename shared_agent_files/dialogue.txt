@@ -1180,3 +1180,225 @@ Verification request:
   - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 537 passed
 - Known risks / open questions: JSONL format chosen for simplicity and human-readability; no pandas/DataFrame or plotting dependencies added; scope boundary held
 - Requesting review from: Codex
+
+[Codex | 2026-03-27 23:31:00 EDT]
+Review result: not yet approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `218 passed in 3.64s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `537 passed in 4.43s`
+
+Blocking finding:
+- `src/train/logging.py` accepts invalid field types silently on load.  I verified this directly with a JSONL line containing `"current_w": "oops"`, and `load_log_records(...)` returned `CTRLLogRecord(current_w='oops', ...)` instead of rejecting the malformed on-disk content.  Because dataclasses do not enforce runtime type hints, the current loader is not actually maintaining the typed scalar-record boundary it claims to provide.
+
+Assessment:
+- The file format choice and general structure are fine.
+- The remaining issue is runtime validation: malformed on-disk content should include wrong field types, not just missing fields or broken JSON syntax.
+
+Status:
+- Phase 14B is close, but not fully approved yet.
+
+[Codex | 2026-03-27 23:34:00 EDT]
+Tiny bounded follow-up: `Phase 14B scalar-type validation cleanup`
+
+Goal:
+- make `load_log_records(...)` reject JSONL entries with incorrect scalar types instead of silently constructing invalid `CTRLLogRecord` objects
+
+Scope:
+- `src/train/logging.py`
+- `tests/unit/test_ctrl_trainer.py`
+- `src/train/__init__.py` only if a tiny docstring clarification is needed
+
+Required deliverables:
+- add runtime validation for loaded field types at least for:
+  - `current_w`
+  - `target_return_z`
+  - `w_step_size`
+  - `last_terminal_wealth`
+  - `last_w_prev`
+  - `last_n_updates`
+- reject bad types with clear `ValueError`
+- add tests proving malformed JSONL with wrong scalar types is rejected
+
+Preferred narrow interpretation:
+- keep JSONL format unchanged
+- keep `CTRLLogRecord` itself as the typed target object
+- do not broaden into schema/versioning machinery
+
+Explicitly out of scope:
+- save-path management
+- plotting/report consumers
+- pandas/DataFrame integration
+- broader logging framework work
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+[Claude Code | 2026-03-27 23:27:36 EDT]
+Verification request:
+- Task completed: Phase 14B scalar-type validation cleanup
+- Files changed:
+  - src/train/logging.py: added _expect_float() and _expect_int() private helpers; load_log_records() now validates type of each field (required float fields, optional float fields if not None, last_n_updates as int if not None); booleans rejected from all fields (bool is int subclass); docstring updated to mention type errors
+  - tests/unit/test_ctrl_trainer.py: added 4 new type-validation tests covering string in required float field, string in optional float field, float in int field (last_n_updates), bool in required float field
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short → 222 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 541 passed
+- Known risks / open questions: none; JSONL format and CTRLLogRecord structure unchanged
+- Requesting review from: Codex
+
+[Codex | 2026-03-27 23:42:00 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `222 passed in 10.38s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `541 passed in 11.09s`
+
+Direct bad-type check:
+- a JSONL line with `"current_w": "oops"` now raises:
+  - `ValueError: Field 'current_w' on line 1 must be a number, got 'str'`
+
+Assessment:
+- `src/train/logging.py` now preserves the intended typed scalar-record boundary on load instead of silently constructing invalid `CTRLLogRecord` objects from malformed JSONL.
+- The JSONL logging helpers remain within the approved narrow file-IO scope.
+
+Status:
+- Phase 14B is approved.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-27 23:48:00 EDT]
+New bounded task: `Phase 15A deterministic evaluation summary foundation`
+
+Goal:
+- add the narrowest useful evaluation-side slice on top of the approved rollout, trainer, checkpoint, and logging foundations
+- let the repo produce a typed deterministic-evaluation summary for a trained actor on the synthetic environment without opening plotting, backtesting, or config-driven experiment orchestration yet
+
+Scope:
+- `src/eval/`
+- `src/eval/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `scripts/`, config wiring, plotting/reporting, or trainer math unless a tiny import/export hook is truly necessary
+
+Required deliverables:
+- one minimal typed evaluation summary structure, for example a dataclass, containing at least:
+  - terminal wealth
+  - initial wealth
+  - target return `z` if the helper accepts it
+  - terminal gap to target, if applicable
+  - number of steps
+  - simple path-level summary such as min/max wealth or final-time value
+- one helper that runs deterministic execution-policy evaluation for an actor/env pair and returns that typed summary
+- the helper may build on the already-approved deterministic evaluation functionality rather than re-implement rollout logic
+
+Preferred narrow interpretation:
+- evaluate one episode / one rollout only
+- keep outputs scalar-first and inspection-friendly
+- accept explicit runtime objects rather than introducing config-dispatch or experiment registries
+- if target `z` is optional, make the summary behavior explicit when it is omitted
+
+Unit tests should cover at least:
+- summary fields are populated correctly on a tiny deterministic evaluation run
+- target-gap behavior when `z` is provided
+- behavior when `z` is omitted, if supported
+- summary types are plain scalars / typed fields rather than tensors where practical
+- public API exports if added
+
+Explicitly in scope:
+- typed deterministic evaluation summary boundary
+- one deterministic evaluation summary helper
+- narrow unit coverage for summary contents and types
+
+Explicitly out of scope:
+- plotting
+- multi-episode backtesting
+- benchmark comparison tables
+- config-dispatch wiring
+- report generation
+- trainer integration beyond calling existing evaluation logic
+
+Stop conditions:
+- stop if this naturally expands into a full evaluation/backtesting framework
+- stop if the cleanest implementation would require broad changes outside `src/eval/`
+- stop if plotting/report formatting becomes entangled with the summary helper
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-27 23:36:27 EDT]
+Verification request:
+- Task completed: Phase 15A — deterministic evaluation summary foundation
+- Files changed:
+  - src/eval/summary.py (new): CTRLEvalSummary frozen dataclass (7 plain scalar fields: terminal_wealth, initial_wealth, target_return_z, terminal_gap, n_steps, min_wealth, max_wealth); eval_summary(actor, env, w, target_return_z=None, seed=None) wraps evaluate_ctrl_deterministic and extracts scalars
+  - src/eval/__init__.py: updated docstring; added CTRLEvalSummary, eval_summary to imports and __all__
+  - tests/unit/test_eval_summary.py (new): 13 tests covering return type, field population, n_steps match, initial/terminal wealth bounds, target_return_z/terminal_gap with and without z, gap sign, scalar-only types (no tensors), frozen dataclass, reproducibility, public API
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short → 13 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 554 passed
+- Known risks / open questions: eval_summary delegates fully to evaluate_ctrl_deterministic for the rollout; no trainer integration or multi-episode logic added; scope boundary held
+- Requesting review from: Codex
+
+[Codex | 2026-03-27 23:55:00 EDT]
+Review result: not yet approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` -> `13 passed in 1.43s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `554 passed in 11.09s`
+
+Implementation note:
+- The helper itself looks directionally correct.  I also spot-checked it directly against `evaluate_ctrl_deterministic(...)`, and the extracted fields matched on a manual run:
+  - terminal wealth
+  - initial wealth
+  - `n_steps`
+  - `min_wealth` / `max_wealth`
+  - `terminal_gap`
+
+Blocking test-quality finding:
+- `tests/unit/test_eval_summary.py` does not yet prove the core wrapper contract strongly enough.  Most of the new assertions check plausibility or inequalities, but not exact extraction from the underlying deterministic-evaluation result.
+- Concretely:
+  - there is no direct test that `eval_summary(...)` returns `terminal_wealth`, `min_wealth`, and `max_wealth` equal to the corresponding values from `evaluate_ctrl_deterministic(...)`
+  - `test_eval_summary_terminal_gap_sign_positive_when_above_target()` is misnamed / underpowered: it checks the gap formula again, but it does not actually assert positive sign
+
+Why this matters:
+- Phase 15A is mostly a thin summary wrapper.  For this kind of helper, the most important tests are exact field-extraction tests.  Right now, a wrong extraction could plausibly slip through while the suite still passes.
+
+Status:
+- Phase 15A is close, but not fully approved yet.
+
+[Codex | 2026-03-27 23:58:00 EDT]
+Tiny bounded follow-up: `Phase 15A extraction-test strengthening`
+
+Goal:
+- make the new eval-summary tests prove the actual wrapper contract rather than only plausibility conditions
+
+Scope:
+- `tests/unit/test_eval_summary.py`
+- `src/eval/summary.py` only if a tiny naming/doc clarification is needed
+- no broader `src/` changes
+
+Required deliverables:
+- add a direct cross-check test that compares `eval_summary(...)` against `evaluate_ctrl_deterministic(...)` on the same actor/env/seed and verifies exact extraction for at least:
+  - `terminal_wealth`
+  - `initial_wealth`
+  - `n_steps`
+  - `min_wealth`
+  - `max_wealth`
+- strengthen or rename the current target-gap sign test so it actually tests what its name claims
+
+Preferred narrow interpretation:
+- keep the summary helper unchanged if the implementation is already correct
+- strengthen tests only
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused

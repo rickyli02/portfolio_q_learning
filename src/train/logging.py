@@ -23,8 +23,22 @@ from pathlib import Path
 
 from src.train.log_record import CTRLLogRecord
 
-_REQUIRED = ("current_w", "target_return_z", "w_step_size")
-_OPTIONAL = ("last_terminal_wealth", "last_w_prev", "last_n_updates")
+def _expect_float(value: object, name: str, lineno: int) -> None:
+    """Raise ValueError if ``value`` is not a JSON number (int or float, not bool)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"Field '{name}' on line {lineno} must be a number, "
+            f"got {type(value).__name__!r}"
+        )
+
+
+def _expect_int(value: object, name: str, lineno: int) -> None:
+    """Raise ValueError if ``value`` is not a JSON integer (not bool, not float)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(
+            f"Field '{name}' on line {lineno} must be an integer, "
+            f"got {type(value).__name__!r}"
+        )
 
 
 def save_log_records(records: list[CTRLLogRecord], path: Path | str) -> None:
@@ -66,8 +80,8 @@ def load_log_records(path: Path | str) -> list[CTRLLogRecord]:
 
     Raises:
         FileNotFoundError: If ``path`` does not exist.
-        ValueError:        If any line contains malformed JSON or is missing a
-                           required field.
+        ValueError:        If any line contains malformed JSON, is missing a
+                           required field, or has an incorrect scalar type.
     """
     p = Path(path)
     if not p.exists():
@@ -83,19 +97,38 @@ def load_log_records(path: Path | str) -> list[CTRLLogRecord]:
         except json.JSONDecodeError as exc:
             raise ValueError(f"Malformed JSON on line {lineno}: {exc}") from exc
         try:
-            records.append(
-                CTRLLogRecord(
-                    current_w=data["current_w"],
-                    target_return_z=data["target_return_z"],
-                    w_step_size=data["w_step_size"],
-                    last_terminal_wealth=data.get("last_terminal_wealth"),
-                    last_w_prev=data.get("last_w_prev"),
-                    last_n_updates=data.get("last_n_updates"),
-                )
-            )
+            current_w = data["current_w"]
+            target_return_z = data["target_return_z"]
+            w_step_size = data["w_step_size"]
         except KeyError as exc:
             raise ValueError(
                 f"Missing required field {exc} on line {lineno}"
             ) from exc
+
+        _expect_float(current_w, "current_w", lineno)
+        _expect_float(target_return_z, "target_return_z", lineno)
+        _expect_float(w_step_size, "w_step_size", lineno)
+
+        last_terminal_wealth = data.get("last_terminal_wealth")
+        last_w_prev = data.get("last_w_prev")
+        last_n_updates = data.get("last_n_updates")
+
+        if last_terminal_wealth is not None:
+            _expect_float(last_terminal_wealth, "last_terminal_wealth", lineno)
+        if last_w_prev is not None:
+            _expect_float(last_w_prev, "last_w_prev", lineno)
+        if last_n_updates is not None:
+            _expect_int(last_n_updates, "last_n_updates", lineno)
+
+        records.append(
+            CTRLLogRecord(
+                current_w=current_w,
+                target_return_z=target_return_z,
+                w_step_size=w_step_size,
+                last_terminal_wealth=last_terminal_wealth,
+                last_w_prev=last_w_prev,
+                last_n_updates=last_n_updates,
+            )
+        )
 
     return records
