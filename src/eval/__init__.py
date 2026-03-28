@@ -11,10 +11,12 @@ Current primitives:
 - Phase 15H: evaluation record-set file IO helpers (``save_eval_record_sets``, ``load_eval_record_sets``).
 - Phase 15I: pure derivation helpers (``summary_from_record``, ``aggregate_from_record_set``).
 - Phase 15J: typed scalar bundle (``CTRLEvalScalarBundle``, ``bundle_from_record_set``).
+- Phase 15K: scalar-bundle file IO helpers (``save_eval_bundles``, ``load_eval_bundles``).
 """
 
 from src.eval.aggregate import CTRLEvalAggregate, eval_aggregate
 from src.eval.aggregate_io import load_eval_aggregates, save_eval_aggregates
+from src.eval.bundle_io import load_eval_bundles, save_eval_bundles
 from src.eval.derive import (
     CTRLEvalScalarBundle,
     aggregate_from_record_set,
@@ -37,6 +39,7 @@ __all__ = [
     "aggregate_from_record_set",
     "bundle_from_record_set",
     "eval_aggregate",
+    "load_eval_bundles",
     "eval_record",
     "eval_record_set",
     "eval_summary",
@@ -45,6 +48,7 @@ __all__ = [
     "load_eval_records",
     "load_eval_summaries",
     "save_eval_aggregates",
+    "save_eval_bundles",
     "save_eval_record_sets",
     "save_eval_records",
     "save_eval_summaries",
