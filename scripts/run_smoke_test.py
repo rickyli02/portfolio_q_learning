@@ -244,49 +244,18 @@ def main(config_path: str) -> int:
     results.append(_check("CTRL trajectory + deterministic eval", _ctrl))
 
     # ------------------------------------------------------------------
-    # 8. CTRL trainer demo (CTRLTrainerState end-to-end)
+    # 8. CTRL trainer demo (run_ctrl_demo.py entrypoint)
     # ------------------------------------------------------------------
-    def _ctrl_trainer():
-        import torch
-        from src.config.schema import AssetConfig, EnvConfig
-        from src.envs.gbm_env import GBMPortfolioEnv
-        from src.models.gaussian_actor import GaussianActor
-        from src.models.quadratic_critic import QuadraticCritic
-        from src.train import CTRLTrainerState
+    def _ctrl_trainer_demo():
+        import importlib.util
+        demo_path = _REPO_ROOT / "scripts" / "run_ctrl_demo.py"
+        spec = importlib.util.spec_from_file_location("run_ctrl_demo", demo_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        rc = module.main()
+        assert rc == 0, f"run_ctrl_demo.main() returned non-zero exit code: {rc}"
 
-        env_cfg = EnvConfig(
-            horizon=cfg.env.horizon,
-            n_steps=cfg.env.n_steps,
-            initial_wealth=cfg.env.initial_wealth,
-            mu=cfg.env.mu,
-            sigma=cfg.env.sigma,
-            assets=AssetConfig(
-                n_risky=cfg.env.assets.n_risky,
-                include_risk_free=cfg.env.assets.include_risk_free,
-                risk_free_rate=cfg.env.assets.risk_free_rate,
-            ),
-        )
-        env = GBMPortfolioEnv(env_cfg)
-        n_risky = cfg.env.assets.n_risky
-        actor = GaussianActor(n_risky=n_risky, horizon=cfg.env.horizon)
-        critic = QuadraticCritic(horizon=cfg.env.horizon, target_return_z=1.0)
-        actor_opt = torch.optim.SGD(actor.parameters(), lr=1e-3)
-        critic_opt = torch.optim.SGD(critic.parameters(), lr=1e-3)
-
-        trainer = CTRLTrainerState(
-            actor=actor, critic=critic, env=env,
-            actor_optimizer=actor_opt, critic_optimizer=critic_opt,
-            current_w=1.0, target_return_z=1.0, w_step_size=0.1,
-        )
-        result = trainer.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=cfg.seed)
-        snap = trainer.snapshot()
-
-        assert isinstance(result.w_next, float), "w_next must be a float"
-        assert snap.last_terminal_wealth is not None, "terminal_wealth must be populated"
-        assert snap.last_n_updates == 1, f"expected last_n_updates=1, got {snap.last_n_updates}"
-        assert len(trainer.history) == 1, f"expected 1 history entry, got {len(trainer.history)}"
-
-    results.append(_check("CTRL trainer demo (CTRLTrainerState)", _ctrl_trainer))
+    results.append(_check("CTRL trainer demo (run_ctrl_demo.py)", _ctrl_trainer_demo))
 
     # ------------------------------------------------------------------
     # Summary

@@ -1731,3 +1731,244 @@ def test_trainer_reset_next_run_starts_from_reset_w():
     state.reset()
     result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
     assert result.w_prev == pytest.approx(1.0)
+
+
+# ===========================================================================
+# Phase 13B — CTRLCheckpointPayload export / restore
+# ===========================================================================
+
+import dataclasses
+
+from src.train.ctrl_state import CTRLCheckpointPayload
+
+
+# --- export returns expected payload shape ---
+
+def test_export_checkpoint_returns_payload_type():
+    """export_checkpoint() returns a CTRLCheckpointPayload."""
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    assert isinstance(payload, CTRLCheckpointPayload)
+
+
+def test_export_checkpoint_has_all_fields():
+    """CTRLCheckpointPayload has the required seven fields."""
+    expected = {
+        "actor_state_dict", "critic_state_dict",
+        "actor_optimizer_state_dict", "critic_optimizer_state_dict",
+        "current_w", "target_return_z", "w_step_size",
+    }
+    assert {f.name for f in dataclasses.fields(CTRLCheckpointPayload)} == expected
+
+
+def test_export_checkpoint_scalar_fields_match_state():
+    """Exported scalars match the trainer's current values."""
+    state = _make_trainer_state(w_init=1.3, target_return_z=1.05, w_step_size=0.07)
+    payload = state.export_checkpoint()
+    assert payload.current_w == pytest.approx(1.3)
+    assert payload.target_return_z == pytest.approx(1.05)
+    assert payload.w_step_size == pytest.approx(0.07)
+
+
+def test_export_checkpoint_state_dicts_are_dicts():
+    """All four state_dict fields are plain dicts."""
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    assert isinstance(payload.actor_state_dict, dict)
+    assert isinstance(payload.critic_state_dict, dict)
+    assert isinstance(payload.actor_optimizer_state_dict, dict)
+    assert isinstance(payload.critic_optimizer_state_dict, dict)
+
+
+def test_export_checkpoint_after_run_captures_updated_w():
+    """Exported payload reflects current_w after a training run."""
+    state = _make_trainer_state(w_init=1.0)
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    payload = state.export_checkpoint()
+    assert payload.current_w == pytest.approx(result.w_next)
+
+
+# --- payload is stable after live mutations ---
+
+def test_export_checkpoint_actor_payload_stable_after_live_mutation():
+    """Mutating live actor parameters after export does not mutate the payload."""
+    import torch
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    # Snapshot payload values before mutation
+    saved = {k: v.clone() for k, v in payload.actor_state_dict.items()}
+    # Mutate live actor parameters via a training run
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    # Payload must be unchanged
+    for k, v_saved in saved.items():
+        assert torch.allclose(payload.actor_state_dict[k], v_saved), (
+            f"actor payload key '{k}' was mutated by a live training run"
+        )
+
+
+def test_export_checkpoint_critic_payload_stable_after_live_mutation():
+    """Mutating live critic parameters after export does not mutate the payload."""
+    import torch
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    saved = {k: v.clone() for k, v in payload.critic_state_dict.items()}
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    for k, v_saved in saved.items():
+        assert torch.allclose(payload.critic_state_dict[k], v_saved), (
+            f"critic payload key '{k}' was mutated by a live training run"
+        )
+
+
+# --- restore reproduces scalar trainer state ---
+
+def test_restore_checkpoint_scalar_state():
+    """restore_checkpoint() sets current_w, target_return_z, w_step_size from payload."""
+    state = _make_trainer_state(w_init=1.0, target_return_z=1.0, w_step_size=0.1)
+    payload = state.export_checkpoint()
+    # Mutate scalars to something different
+    state.current_w = 99.0
+    state.target_return_z = 99.0
+    state.w_step_size = 99.0
+    state.restore_checkpoint(payload)
+    assert state.current_w == pytest.approx(1.0)
+    assert state.target_return_z == pytest.approx(1.0)
+    assert state.w_step_size == pytest.approx(0.1)
+
+
+# --- restore updates model/optimizer state in place ---
+
+def test_restore_checkpoint_restores_actor_params():
+    """restore_checkpoint() loads actor parameters back to their captured values."""
+    import torch
+    state = _make_trainer_state()
+    payload_before = state.export_checkpoint()
+    # Run to change actor parameters
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    # Verify at least one actor param changed after the run
+    any_changed = any(
+        not torch.allclose(payload_before.actor_state_dict[k], v)
+        for k, v in state.actor.state_dict().items()
+    )
+    assert any_changed, "Expected actor parameters to change after run_outer_iter"
+    # Restore and verify actor params match the captured payload
+    state.restore_checkpoint(payload_before)
+    for k, v in state.actor.state_dict().items():
+        assert torch.allclose(v, payload_before.actor_state_dict[k]), (
+            f"actor param '{k}' mismatch after restore"
+        )
+
+
+def test_restore_checkpoint_restores_critic_params():
+    """restore_checkpoint() loads critic parameters back to their captured values."""
+    import torch
+    state = _make_trainer_state()
+    payload_before = state.export_checkpoint()
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    state.restore_checkpoint(payload_before)
+    for k, v in state.critic.state_dict().items():
+        assert torch.allclose(v, payload_before.critic_state_dict[k]), (
+            f"critic param '{k}' mismatch after restore"
+        )
+
+
+# --- restore does not replace stored object references ---
+
+def test_restore_checkpoint_preserves_actor_reference():
+    """restore_checkpoint() does not replace the actor object reference."""
+    state = _make_trainer_state()
+    original_actor = state.actor
+    payload = state.export_checkpoint()
+    state.restore_checkpoint(payload)
+    assert state.actor is original_actor
+
+
+def test_restore_checkpoint_preserves_critic_reference():
+    """restore_checkpoint() does not replace the critic object reference."""
+    state = _make_trainer_state()
+    original_critic = state.critic
+    payload = state.export_checkpoint()
+    state.restore_checkpoint(payload)
+    assert state.critic is original_critic
+
+
+def test_restore_checkpoint_preserves_optimizer_references():
+    """restore_checkpoint() does not replace optimizer object references."""
+    state = _make_trainer_state()
+    original_actor_opt = state.actor_optimizer
+    original_critic_opt = state.critic_optimizer
+    payload = state.export_checkpoint()
+    state.restore_checkpoint(payload)
+    assert state.actor_optimizer is original_actor_opt
+    assert state.critic_optimizer is original_critic_opt
+
+
+# --- restore clears history and diagnostics ---
+
+def test_restore_checkpoint_clears_history():
+    """restore_checkpoint() resets history to empty."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    payload = state.export_checkpoint()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=5)
+    state.restore_checkpoint(payload)
+    assert len(state.history) == 0
+
+
+def test_restore_checkpoint_clears_diagnostics():
+    """restore_checkpoint() resets latest snapshot diagnostics to None."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    payload = state.export_checkpoint()
+    state.restore_checkpoint(payload)
+    snap = state.snapshot()
+    assert snap.last_terminal_wealth is None
+    assert snap.last_w_prev is None
+    assert snap.last_n_updates is None
+
+
+# --- invalid payloads are rejected ---
+
+def test_restore_checkpoint_invalid_current_w_nan_raises():
+    """restore_checkpoint() rejects payload with NaN current_w."""
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    bad = CTRLCheckpointPayload(
+        actor_state_dict=payload.actor_state_dict,
+        critic_state_dict=payload.critic_state_dict,
+        actor_optimizer_state_dict=payload.actor_optimizer_state_dict,
+        critic_optimizer_state_dict=payload.critic_optimizer_state_dict,
+        current_w=float("nan"),
+        target_return_z=payload.target_return_z,
+        w_step_size=payload.w_step_size,
+    )
+    with pytest.raises(ValueError, match="current_w"):
+        state.restore_checkpoint(bad)
+
+
+def test_restore_checkpoint_invalid_w_step_size_zero_raises():
+    """restore_checkpoint() rejects payload with w_step_size == 0."""
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    bad = CTRLCheckpointPayload(
+        actor_state_dict=payload.actor_state_dict,
+        critic_state_dict=payload.critic_state_dict,
+        actor_optimizer_state_dict=payload.actor_optimizer_state_dict,
+        critic_optimizer_state_dict=payload.critic_optimizer_state_dict,
+        current_w=payload.current_w,
+        target_return_z=payload.target_return_z,
+        w_step_size=0.0,
+    )
+    with pytest.raises(ValueError, match="w_step_size"):
+        state.restore_checkpoint(bad)
+
+
+# --- public API export ---
+
+def test_phase13b_public_api_imports():
+    from src.train import CTRLCheckpointPayload, CTRLTrainerState
+    assert CTRLCheckpointPayload is not None
+    state = _make_trainer_state()
+    assert callable(state.export_checkpoint)
+    assert callable(state.restore_checkpoint)
+    payload = state.export_checkpoint()
+    assert isinstance(payload, CTRLCheckpointPayload)

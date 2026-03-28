@@ -1,4 +1,4 @@
-"""Stateful CTRL trainer shell — Phases 11A/11B/12A.
+"""Stateful CTRL trainer shell — Phases 11A/11B/12A–12C/13B.
 
 REPO ENGINEERING NOTES
 ----------------------
@@ -31,10 +31,16 @@ Phase 12C adds a scalar-state reset boundary:
 - Supports reset to construction-time ``w`` (default) or an explicitly supplied finite ``w``
 - Actor / critic / env / optimizer references are never replaced
 
+Phase 13B adds an in-memory checkpoint payload layer:
+- ``CTRLCheckpointPayload`` captures actor/critic/optimizer state_dicts + scalar trainer state
+- ``CTRLTrainerState.export_checkpoint()`` captures the current in-memory payload
+- ``CTRLTrainerState.restore_checkpoint(payload)`` restores state in place; history and
+  latest snapshot diagnostics are intentionally omitted from the payload boundary
+
 SCOPE BOUNDARY
 --------------
 The following are NOT implemented here:
-- checkpoint or logging infrastructure
+- writing checkpoint files to disk or loading from disk paths
 - config-dispatch wiring
 - offline / online trainer classes
 - adaptive or learned w schedules
@@ -46,6 +52,7 @@ These belong in future bounded tasks.
 
 from __future__ import annotations
 
+import copy
 import math
 from dataclasses import dataclass
 
@@ -85,6 +92,33 @@ class CTRLTrainerSnapshot:
     last_terminal_wealth: float | None
     last_w_prev: float | None
     last_n_updates: int | None
+
+
+@dataclass
+class CTRLCheckpointPayload:
+    """In-memory checkpoint payload for ``CTRLTrainerState`` — Phase 13B.
+
+    REPO ENGINEERING: captures everything needed to resume training from a
+    known state.  Intentionally omits in-memory history and latest snapshot
+    diagnostics; those are ephemeral and not required for a resume boundary.
+
+    Attributes:
+        actor_state_dict:            ``actor.state_dict()`` at capture time.
+        critic_state_dict:           ``critic.state_dict()`` at capture time.
+        actor_optimizer_state_dict:  ``actor_optimizer.state_dict()`` at capture time.
+        critic_optimizer_state_dict: ``critic_optimizer.state_dict()`` at capture time.
+        current_w:                   Lagrange multiplier at capture time.
+        target_return_z:             Target terminal wealth z at capture time.
+        w_step_size:                 Outer-loop step size a_w at capture time.
+    """
+
+    actor_state_dict: dict
+    critic_state_dict: dict
+    actor_optimizer_state_dict: dict
+    critic_optimizer_state_dict: dict
+    current_w: float
+    target_return_z: float
+    w_step_size: float
 
 
 class CTRLTrainerState:
@@ -343,6 +377,66 @@ class CTRLTrainerState:
             self.current_w = w
         else:
             self.current_w = self._initial_w
+        self._last_terminal_wealth = None
+        self._last_w_prev = None
+        self._last_n_updates = None
+        self._history.clear()
+
+    def export_checkpoint(self) -> CTRLCheckpointPayload:
+        """Capture the current in-memory trainer state as a checkpoint payload.
+
+        REPO ENGINEERING (Phase 13B): calls ``state_dict()`` on the stored
+        actor, critic, and optimizers, then packages them with the current
+        scalar fields.  History and latest snapshot diagnostics are
+        intentionally omitted (see ``CTRLCheckpointPayload`` docstring).
+
+        Returns:
+            ``CTRLCheckpointPayload`` with copies of all state_dicts and
+            current scalar trainer state.
+        """
+        return CTRLCheckpointPayload(
+            actor_state_dict=copy.deepcopy(self.actor.state_dict()),
+            critic_state_dict=copy.deepcopy(self.critic.state_dict()),
+            actor_optimizer_state_dict=copy.deepcopy(self.actor_optimizer.state_dict()),
+            critic_optimizer_state_dict=copy.deepcopy(self.critic_optimizer.state_dict()),
+            current_w=self.current_w,
+            target_return_z=self.target_return_z,
+            w_step_size=self.w_step_size,
+        )
+
+    def restore_checkpoint(self, payload: CTRLCheckpointPayload) -> None:
+        """Restore trainer state in place from a checkpoint payload.
+
+        REPO ENGINEERING (Phase 13B): calls ``load_state_dict()`` on the
+        stored actor, critic, and optimizers, then updates the scalar fields.
+        Object references (actor, critic, env, optimizers) are never replaced.
+        History and latest snapshot diagnostics are reset to empty / None
+        because they are not captured in the payload boundary.
+
+        Args:
+            payload: ``CTRLCheckpointPayload`` produced by ``export_checkpoint``.
+
+        Raises:
+            ValueError: if any scalar field in the payload is invalid (non-finite
+                ``current_w`` or ``target_return_z``, or ``w_step_size <= 0``).
+        """
+        if not math.isfinite(payload.current_w):
+            raise ValueError(f"payload current_w must be finite, got {payload.current_w}")
+        if not math.isfinite(payload.target_return_z):
+            raise ValueError(
+                f"payload target_return_z must be finite, got {payload.target_return_z}"
+            )
+        if payload.w_step_size <= 0.0 or not math.isfinite(payload.w_step_size):
+            raise ValueError(
+                f"payload w_step_size must be finite and > 0, got {payload.w_step_size}"
+            )
+        self.actor.load_state_dict(payload.actor_state_dict)
+        self.critic.load_state_dict(payload.critic_state_dict)
+        self.actor_optimizer.load_state_dict(payload.actor_optimizer_state_dict)
+        self.critic_optimizer.load_state_dict(payload.critic_optimizer_state_dict)
+        self.current_w = payload.current_w
+        self.target_return_z = payload.target_return_z
+        self.w_step_size = payload.w_step_size
         self._last_terminal_wealth = None
         self._last_w_prev = None
         self._last_n_updates = None
