@@ -37,13 +37,17 @@ As of 2026-03-27:
 - Phase 13B in-memory checkpoint payload foundation is approved.
 - Phase 13C checkpoint file IO foundation is approved.
 - Phase 14A in-memory trainer logging record foundation is approved.
+- Phase 14B trainer log file IO foundation is approved.
+- Phase 15A deterministic evaluation summary foundation is approved.
 - Latest verified outputs with current repo state are:
   - model-focused verification:
     - `tests/unit/test_models.py -q -> 49 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 526 passed`
+    - `tests/unit -q -> 555 passed`
   - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 207 passed`
+    - `tests/unit/test_ctrl_trainer.py -q -> 222 passed`
+  - current evaluation-summary verification:
+    - `tests/unit/test_eval_summary.py -q -> 14 passed`
   - current smoke verification:
     - `scripts/run_smoke_test.py -> 8/8 passed`
   - current long-verification artifacts:
@@ -53,7 +57,7 @@ As of 2026-03-27:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - none; Phase 14A is approved and Claude is currently paused pending the next bounded task
+  - Phase 15B evaluation summary file IO foundation
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next

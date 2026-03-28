@@ -30,12 +30,15 @@ Last updated: 2026-03-27
 - Phase 13B in-memory checkpoint payload foundation: approved
 - Phase 13C checkpoint file IO foundation: approved
 - Phase 14A in-memory trainer logging record foundation: approved
-- Active bounded task: none; Claude is paused pending the next bounded task
+- Phase 14B trainer log file IO foundation: approved
+- Phase 15A deterministic evaluation summary foundation: approved
+- Active bounded task: Phase 15B evaluation summary file IO foundation
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `526 passed`
-- `tests/unit/test_ctrl_trainer.py -q` has reached `207 passed`
+- `tests/unit -q` has reached `555 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `222 passed`
+- `tests/unit/test_eval_summary.py -q` has reached `14 passed`
 - `scripts/run_smoke_test.py` has reached `8/8 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - subprocess-isolated import timing normalized after recreating `.venv` locally:
@@ -49,8 +52,8 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - keep extending the trainer layer in bounded, testable slices
-  - keep logging/checkpoint/run-management work narrow and staged rather than opening full infrastructure at once
+  - extend the evaluation layer in bounded, testable slices
+  - keep file IO / logging / checkpoint / evaluation work narrow and staged rather than opening full experiment infrastructure at once
 
 ## Stable decisions
 

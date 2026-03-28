@@ -381,16 +381,18 @@ Implemented and verified so far:
   - fixed-length outer-loop schedule
   - stateful trainer shell with validation, snapshot, history, and reset boundaries
   - in-memory checkpoint payload export/restore plus file-based save/load helpers
-  - in-memory scalar logging-record extraction helpers
+  - in-memory scalar logging-record extraction plus log-record file save/load helpers
+- first evaluation-side slice under `src/eval/`, including:
+  - typed deterministic evaluation summaries
 - smoke and long-verification tooling under `scripts/`
 - minimal CTRL demo script under `scripts/run_ctrl_demo.py`
-- focused unit-test coverage, with the current unit suite at `526 passed`
+- focused unit-test coverage, with the current unit suite at `555 passed`
 
 Not yet implemented:
 
 - full trainer-loop and experiment-management infrastructure beyond the current bounded trainer helpers
 - offline / online trainers
-- evaluation and backtesting baselines
+- evaluation/backtesting infrastructure beyond the current single-episode deterministic summary helper
 - plotting and reporting utilities
 
 Current validation utilities include:
