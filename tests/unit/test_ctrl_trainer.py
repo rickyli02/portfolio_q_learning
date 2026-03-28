@@ -1594,3 +1594,140 @@ def test_trainer_history_resumes_after_clear():
     result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=10)
     assert len(state.history) == 1
     assert state.history[0].current_w == pytest.approx(result.w_next)
+
+
+def test_trainer_history_entry_field_mutation_raises():
+    """Mutating a field on a history entry is rejected (frozen dataclass)."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    entry = state.history[0]
+    with pytest.raises(AttributeError):
+        entry.current_w = 999.0  # type: ignore[misc]
+
+
+# ===========================================================================
+# Phase 12C — CTRLTrainerState reset boundary
+# ===========================================================================
+
+# --- reset to original w ---
+
+def test_trainer_reset_restores_initial_w():
+    """reset() with no argument restores current_w to construction-time value."""
+    state = _make_trainer_state(w_init=1.5)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert state.current_w != pytest.approx(1.5)  # w was updated by run
+    state.reset()
+    assert state.current_w == pytest.approx(1.5)
+
+
+def test_trainer_reset_after_multiple_runs_restores_initial_w():
+    """reset() restores initial w even after multiple consecutive runs."""
+    state = _make_trainer_state(w_init=2.0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=5)
+    state.reset()
+    assert state.current_w == pytest.approx(2.0)
+
+
+# --- reset to explicit w ---
+
+def test_trainer_reset_to_explicit_w():
+    """reset(w=x) sets current_w to the supplied value."""
+    state = _make_trainer_state(w_init=1.0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.reset(w=3.0)
+    assert state.current_w == pytest.approx(3.0)
+
+
+def test_trainer_reset_explicit_w_negative_is_valid():
+    """reset accepts a negative finite w (no sign restriction)."""
+    state = _make_trainer_state()
+    state.reset(w=-0.5)
+    assert state.current_w == pytest.approx(-0.5)
+
+
+# --- reset clears diagnostics ---
+
+def test_trainer_reset_clears_snapshot_diagnostics():
+    """reset() sets last_* diagnostic fields back to None."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.reset()
+    snap = state.snapshot()
+    assert snap.last_terminal_wealth is None
+    assert snap.last_w_prev is None
+    assert snap.last_n_updates is None
+
+
+# --- reset clears history ---
+
+def test_trainer_reset_clears_history():
+    """reset() empties in-memory history."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.reset()
+    assert len(state.history) == 0
+
+
+# --- reset does not replace object references ---
+
+def test_trainer_reset_preserves_actor_reference():
+    """reset() does not replace the stored actor object."""
+    state = _make_trainer_state()
+    original_actor = state.actor
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.reset()
+    assert state.actor is original_actor
+
+
+def test_trainer_reset_preserves_critic_reference():
+    """reset() does not replace the stored critic object."""
+    state = _make_trainer_state()
+    original_critic = state.critic
+    state.reset()
+    assert state.critic is original_critic
+
+
+def test_trainer_reset_preserves_env_reference():
+    """reset() does not replace the stored env object."""
+    state = _make_trainer_state()
+    original_env = state.env
+    state.reset()
+    assert state.env is original_env
+
+
+def test_trainer_reset_preserves_optimizer_references():
+    """reset() does not replace the stored optimizer objects."""
+    state = _make_trainer_state()
+    original_actor_opt = state.actor_optimizer
+    original_critic_opt = state.critic_optimizer
+    state.reset()
+    assert state.actor_optimizer is original_actor_opt
+    assert state.critic_optimizer is original_critic_opt
+
+
+# --- reset rejects invalid explicit w ---
+
+def test_trainer_reset_nan_w_raises():
+    """reset(w=nan) raises ValueError."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="reset w"):
+        state.reset(w=float("nan"))
+
+
+def test_trainer_reset_inf_w_raises():
+    """reset(w=inf) raises ValueError."""
+    state = _make_trainer_state()
+    with pytest.raises(ValueError, match="reset w"):
+        state.reset(w=float("inf"))
+
+
+# --- runs after reset use updated w ---
+
+def test_trainer_reset_next_run_starts_from_reset_w():
+    """After reset(), the next run_outer_iter uses the reset current_w."""
+    state = _make_trainer_state(w_init=1.0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.reset()
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    assert result.w_prev == pytest.approx(1.0)

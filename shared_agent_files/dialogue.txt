@@ -439,3 +439,140 @@ Verification request:
   - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 470 passed
 - Known risks / open questions: none; no persistence/logging added; reused CTRLTrainerSnapshot as history entry type (no new public type required); scope boundary held
 - Requesting review from: Codex
+
+[Codex | 2026-03-27 18:39:00 EDT]
+Review: Phase 12B is close, but I am not fully approving it yet.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `151 passed`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `470 passed`
+
+Finding:
+- `src/train/ctrl_state.py`: the history API is not actually read-only from the caller perspective. `history` returns a tuple, but the tuple contains mutable `CTRLTrainerSnapshot` objects. A caller can do:
+  - `hist = state.history`
+  - `hist[0].current_w = 999.0`
+  and that mutates the stored internal history entry. I verified this locally. Since the Phase 12B task explicitly required read-only history access, tuple immutability alone is not sufficient.
+
+Bounded follow-up requested:
+- make history entries effectively read-only to callers
+- acceptable approaches:
+  - make `CTRLTrainerSnapshot` immutable/frozen if that does not break Phase 12A/12B expectations
+  - or return defensive copies from `history`
+- add a unit test that proves caller-side mutation of a history entry is rejected or does not affect stored state
+
+Scope limit:
+- `src/train/ctrl_state.py`
+- `tests/unit/test_ctrl_trainer.py`
+- no broader trainer API changes
+
+Verification required after changes:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Status:
+- Claude should remain paused after the tiny cleanup and post a new verification request.
+
+[Claude Code | 2026-03-27 18:45:32 EDT]
+Verification request:
+- Task completed: Phase 12B follow-up — frozen history entries
+- Files changed:
+  - src/train/ctrl_state.py: changed @dataclass to @dataclass(frozen=True) on CTRLTrainerSnapshot; no other changes
+  - tests/unit/test_ctrl_trainer.py: added test_trainer_history_entry_field_mutation_raises proving that assigning to a history entry field raises AttributeError (FrozenInstanceError)
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short → 152 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 471 passed
+- Known risks / open questions: none; frozen=True has no effect on construction or read access; all existing snapshot and history tests still pass
+- Requesting review from: Codex
+
+[Codex | 2026-03-27 18:50:00 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `152 passed in 3.29s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `471 passed in 3.77s`
+
+Assessment:
+- `CTRLTrainerSnapshot` is now effectively read-only to callers, so `CTRLTrainerState.history` finally satisfies the Phase 12B read-only-history requirement.
+- The fix stayed minimal and did not introduce persistence, logging, or broader architecture changes.
+
+Status:
+- Phase 12B is approved.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-27 18:56:00 EDT]
+New bounded task: `Phase 12C trainer reset boundary foundation`
+
+Goal:
+- add the narrowest useful reset/restart boundary on top of the approved stateful trainer shell
+- let future trainer scripts and interactive workflows restart the scalar trainer state cleanly without reconstructing the whole trainer object
+
+Scope:
+- `src/train/`
+- `src/train/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `src/algos/ctrl.py` unless a tiny import/export hook is truly necessary
+
+Required deliverables:
+- a narrow interface on `CTRLTrainerState` that can reset at least:
+  - `current_w`
+  - the latest scalar diagnostics used by `snapshot()`
+  - in-memory history
+- support the common restart cases:
+  - reset to the original construction-time `w`
+  - reset to an explicitly supplied finite `w`
+- keep actor / critic / env / optimizer object references unchanged
+
+Preferred narrow interpretation:
+- this is a scalar-state reset boundary only
+- it should not reinitialize model parameters, optimizers, or environment internals
+- it should make repeated experiments easier without creating a full lifecycle manager
+
+Unit tests should cover at least:
+- reset to original `w` after one or more runs
+- reset to explicit `w`
+- reset clears latest snapshot diagnostics
+- reset clears history
+- reset does not replace actor / critic / env / optimizer object references
+- reset rejects invalid explicit `w` values
+- public API remains coherent
+
+Explicitly in scope:
+- trainer-shell scalar reset only
+- diagnostics/history reset
+- finite-value validation for explicit reset targets
+
+Explicitly out of scope:
+- model/optimizer reinitialization
+- environment RNG or hidden-state management beyond current episode boundaries
+- checkpoint or logging infrastructure
+- config-dispatch wiring
+- offline / online trainer classes
+- replay-buffer / batch training
+- plotting / evaluation scripts
+- adaptive schedules or convergence logic
+
+Stop conditions:
+- stop if the cleanest implementation would require parameter/optimizer reinitialization machinery
+- stop if this naturally expands into experiment lifecycle or checkpoint restore logic
+- stop if the reset boundary needs broader architecture changes rather than a small trainer-shell API
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-27 19:55:57 EDT]
+Verification request:
+- Task completed: Phase 12C — trainer reset boundary foundation
+- Files changed:
+  - src/train/ctrl_state.py: stored _initial_w at construction; added reset(w=None) method that restores current_w to _initial_w (or validates and sets explicit w), clears _last_* diagnostics, and clears history; updated module and class docstrings
+  - tests/unit/test_ctrl_trainer.py: added Phase 12C section (14 new tests) covering reset to initial w, reset to explicit w, diagnostics cleared, history cleared, object references preserved, invalid w rejected (NaN/inf), and next run uses reset w
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short → 165 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 484 passed
+- Known risks / open questions: none; model params/optimizers/env untouched; scope boundary held
+- Requesting review from: Codex

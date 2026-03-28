@@ -26,6 +26,11 @@ Phase 12B adds an in-memory history layer:
 - ``CTRLTrainerState.history`` exposes accumulated snapshots as an immutable tuple
 - ``CTRLTrainerState.clear_history()`` resets history without touching live trainer state
 
+Phase 12C adds a scalar-state reset boundary:
+- ``CTRLTrainerState.reset(w=None)`` resets ``current_w``, clears diagnostics and history
+- Supports reset to construction-time ``w`` (default) or an explicitly supplied finite ``w``
+- Actor / critic / env / optimizer references are never replaced
+
 SCOPE BOUNDARY
 --------------
 The following are NOT implemented here:
@@ -52,7 +57,7 @@ from src.train.ctrl_outer_iter import CTRLOuterIterResult, ctrl_outer_iter
 from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
 
 
-@dataclass
+@dataclass(frozen=True)
 class CTRLTrainerSnapshot:
     """Read-only snapshot of ``CTRLTrainerState`` at a point in time.
 
@@ -102,6 +107,7 @@ class CTRLTrainerState:
         w_step_size:       Positive outer-loop step size a_w.
 
     Private diagnostic fields (populated after each run, used by snapshot()):
+        _initial_w:            Construction-time current_w; used by reset().
         _last_terminal_wealth: Terminal wealth from last run's final step.
         _last_w_prev:          w before the last w-update.
         _last_n_updates:       Total inner steps in the last call.
@@ -133,6 +139,7 @@ class CTRLTrainerState:
         self.current_w = current_w
         self.target_return_z = target_return_z
         self.w_step_size = w_step_size
+        self._initial_w: float = current_w
         self._last_terminal_wealth: float | None = None
         self._last_w_prev: float | None = None
         self._last_n_updates: int | None = None
@@ -313,4 +320,30 @@ class CTRLTrainerState:
         changing ``current_w``, ``target_return_z``, ``w_step_size``, or any
         other live trainer state.
         """
+        self._history.clear()
+
+    def reset(self, w: float | None = None) -> None:
+        """Reset scalar trainer state to a clean starting point.
+
+        REPO ENGINEERING (Phase 12C): resets ``current_w``, clears all scalar
+        diagnostics (``_last_*`` fields), and clears in-memory history.  Does
+        NOT reinitialize model parameters, optimizers, or environment internals.
+
+        Args:
+            w: New starting value for ``current_w``.  Must be finite.
+               If ``None``, resets to the construction-time ``current_w``
+               (``_initial_w``).
+
+        Raises:
+            ValueError: if ``w`` is provided but not finite.
+        """
+        if w is not None:
+            if not math.isfinite(w):
+                raise ValueError(f"reset w must be finite, got {w}")
+            self.current_w = w
+        else:
+            self.current_w = self._initial_w
+        self._last_terminal_wealth = None
+        self._last_w_prev = None
+        self._last_n_updates = None
         self._history.clear()
