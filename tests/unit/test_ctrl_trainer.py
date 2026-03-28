@@ -2093,3 +2093,162 @@ def test_phase13c_public_api_imports():
     from src.train import load_checkpoint, save_checkpoint
     assert callable(save_checkpoint)
     assert callable(load_checkpoint)
+
+
+# ===========================================================================
+# Phase 14A — CTRLLogRecord and snapshot/history conversion helpers
+# ===========================================================================
+
+from src.train.log_record import CTRLLogRecord, record_from_snapshot, records_from_history
+
+
+# --- record dataclass shape ---
+
+def test_log_record_is_frozen_dataclass():
+    """CTRLLogRecord is a frozen dataclass."""
+    import dataclasses
+    assert dataclasses.is_dataclass(CTRLLogRecord)
+    rec = CTRLLogRecord(
+        current_w=1.0, target_return_z=1.0, w_step_size=0.1,
+        last_terminal_wealth=None, last_w_prev=None, last_n_updates=None,
+    )
+    with pytest.raises(AttributeError):
+        rec.current_w = 99.0  # type: ignore[misc]
+
+
+def test_log_record_has_expected_fields():
+    """CTRLLogRecord has the six required scalar fields."""
+    import dataclasses
+    names = {f.name for f in dataclasses.fields(CTRLLogRecord)}
+    assert names == {
+        "current_w", "target_return_z", "w_step_size",
+        "last_terminal_wealth", "last_w_prev", "last_n_updates",
+    }
+
+
+# --- fresh trainer → record with None diagnostics ---
+
+def test_log_record_fresh_state_none_diagnostics():
+    """log_record() on a fresh trainer returns None for all diagnostic fields."""
+    state = _make_trainer_state(w_init=1.3, target_return_z=1.0, w_step_size=0.05)
+    rec = state.log_record()
+    assert isinstance(rec, CTRLLogRecord)
+    assert rec.last_terminal_wealth is None
+    assert rec.last_w_prev is None
+    assert rec.last_n_updates is None
+
+
+def test_log_record_fresh_state_scalar_fields():
+    """log_record() on a fresh trainer reflects construction scalars."""
+    state = _make_trainer_state(w_init=1.3, target_return_z=1.05, w_step_size=0.07)
+    rec = state.log_record()
+    assert rec.current_w == pytest.approx(1.3)
+    assert rec.target_return_z == pytest.approx(1.05)
+    assert rec.w_step_size == pytest.approx(0.07)
+
+
+# --- post-run trainer → record reflects latest diagnostics ---
+
+def test_log_record_after_outer_iter_diagnostics_populated():
+    """log_record() after run_outer_iter has populated diagnostic fields."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    rec = state.log_record()
+    assert rec.last_terminal_wealth is not None
+    assert rec.last_w_prev is not None
+    assert rec.last_n_updates == 2
+
+
+def test_log_record_after_outer_iter_current_w_matches():
+    """log_record() current_w matches state.current_w after run_outer_iter."""
+    state = _make_trainer_state()
+    result = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    rec = state.log_record()
+    assert rec.current_w == pytest.approx(result.w_next)
+
+
+def test_log_record_after_outer_loop_n_updates_is_total():
+    """log_record() last_n_updates is n_outer_iters * n_updates after outer loop."""
+    state = _make_trainer_state()
+    state.run_outer_loop(n_outer_iters=3, n_updates=2, entropy_temp=0.01, base_seed=0)
+    rec = state.log_record()
+    assert rec.last_n_updates == 6
+
+
+# --- records_from_history preserves call order ---
+
+def test_records_from_history_empty_history():
+    """records_from_history returns empty list for empty history."""
+    state = _make_trainer_state()
+    assert records_from_history(state.history) == []
+
+
+def test_records_from_history_length_matches():
+    """records_from_history returns one record per history entry."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=5)
+    recs = records_from_history(state.history)
+    assert len(recs) == 2
+
+
+def test_records_from_history_preserves_order():
+    """records_from_history preserves the call order of history entries."""
+    state = _make_trainer_state()
+    r1 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    r2 = state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=5)
+    recs = records_from_history(state.history)
+    assert recs[0].current_w == pytest.approx(r1.w_next)
+    assert recs[1].current_w == pytest.approx(r2.w_next)
+
+
+def test_records_from_history_all_are_log_records():
+    """All entries returned by records_from_history are CTRLLogRecord instances."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    recs = records_from_history(state.history)
+    assert all(isinstance(r, CTRLLogRecord) for r in recs)
+
+
+# --- records are scalar-only (no tensor fields) ---
+
+def test_log_record_fields_are_scalar_types():
+    """All non-None fields in a CTRLLogRecord are plain Python scalars."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    rec = state.log_record()
+    assert isinstance(rec.current_w, float)
+    assert isinstance(rec.target_return_z, float)
+    assert isinstance(rec.w_step_size, float)
+    assert isinstance(rec.last_terminal_wealth, float)
+    assert isinstance(rec.last_w_prev, float)
+    assert isinstance(rec.last_n_updates, int)
+
+
+# --- record_from_snapshot standalone helper ---
+
+def test_record_from_snapshot_matches_snapshot_fields():
+    """record_from_snapshot produces a record with identical field values."""
+    state = _make_trainer_state()
+    state.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    snap = state.snapshot()
+    rec = record_from_snapshot(snap)
+    assert rec.current_w == pytest.approx(snap.current_w)
+    assert rec.target_return_z == pytest.approx(snap.target_return_z)
+    assert rec.w_step_size == pytest.approx(snap.w_step_size)
+    assert rec.last_terminal_wealth == pytest.approx(snap.last_terminal_wealth)
+    assert rec.last_w_prev == pytest.approx(snap.last_w_prev)
+    assert rec.last_n_updates == snap.last_n_updates
+
+
+# --- public API ---
+
+def test_phase14a_public_api_imports():
+    from src.train import CTRLLogRecord, record_from_snapshot, records_from_history
+    assert CTRLLogRecord is not None
+    assert callable(record_from_snapshot)
+    assert callable(records_from_history)
+    state = _make_trainer_state()
+    assert callable(state.log_record)
+    rec = state.log_record()
+    assert isinstance(rec, CTRLLogRecord)

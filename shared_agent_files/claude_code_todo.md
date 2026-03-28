@@ -28,15 +28,24 @@ As of 2026-03-27:
 - Phase 10A CTRL outer-loop w update primitive is approved.
 - Phase 10B CTRL single outer-iteration foundation is approved.
 - Phase 10C CTRL fixed-length outer-loop schedule foundation is approved.
+- Phase 11A stateful CTRL trainer shell foundation is approved.
+- Phase 11B stateful trainer validation boundary is approved.
+- Phase 12A trainer snapshot and scalar-summary foundation is approved.
+- Phase 12B in-memory trainer history foundation is approved.
+- Phase 12C trainer reset boundary foundation is approved.
+- Phase 13A minimal CTRL demo script foundation is approved.
+- Phase 13B in-memory checkpoint payload foundation is approved.
+- Phase 13C checkpoint file IO foundation is approved.
+- Phase 14A in-memory trainer logging record foundation is approved.
 - Latest verified outputs with current repo state are:
   - model-focused verification:
     - `tests/unit/test_models.py -q -> 49 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 402 passed`
+    - `tests/unit -q -> 526 passed`
   - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 83 passed`
+    - `tests/unit/test_ctrl_trainer.py -q -> 207 passed`
   - current smoke verification:
-    - `scripts/run_smoke_test.py -> 7/7 passed`
+    - `scripts/run_smoke_test.py -> 8/8 passed`
   - current long-verification artifacts:
     - `outputs/verification/2026-03-27_141812_verification.txt`
     - `outputs/verification/2026-03-27_143247_verification.txt`
@@ -44,7 +53,7 @@ As of 2026-03-27:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 11A stateful CTRL trainer shell foundation
+  - none; Phase 14A is approved and Claude is currently paused pending the next bounded task
 - The active RL implementation target is now:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -56,6 +65,8 @@ As of 2026-03-27:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
   - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
+  - add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state beyond simple SGD
+  - decide later whether smoke should assert specific CTRL demo summary markers rather than only successful completion
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`

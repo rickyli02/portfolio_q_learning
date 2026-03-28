@@ -1,4 +1,4 @@
-"""Stateful CTRL trainer shell — Phases 11A/11B/12A–12C/13B.
+"""Stateful CTRL trainer shell — Phases 11A/11B/12A–12C/13B/14A.
 
 REPO ENGINEERING NOTES
 ----------------------
@@ -31,6 +31,9 @@ Phase 12C adds a scalar-state reset boundary:
 - Supports reset to construction-time ``w`` (default) or an explicitly supplied finite ``w``
 - Actor / critic / env / optimizer references are never replaced
 
+Phase 14A adds an in-memory logging record layer:
+- ``CTRLTrainerState.log_record()`` derives a ``CTRLLogRecord`` from the current snapshot
+
 Phase 13B adds an in-memory checkpoint payload layer:
 - ``CTRLCheckpointPayload`` captures actor/critic/optimizer state_dicts + scalar trainer state
 - ``CTRLTrainerState.export_checkpoint()`` captures the current in-memory payload
@@ -55,6 +58,10 @@ from __future__ import annotations
 import copy
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.train.log_record import CTRLLogRecord
 
 import torch
 
@@ -332,6 +339,20 @@ class CTRLTrainerState:
             last_w_prev=self._last_w_prev,
             last_n_updates=self._last_n_updates,
         )
+
+    def log_record(self) -> CTRLLogRecord:
+        """Derive a ``CTRLLogRecord`` from the current trainer snapshot.
+
+        REPO ENGINEERING (Phase 14A): convenience wrapper around
+        ``record_from_snapshot(self.snapshot())``.  Does not mutate any
+        trainer state.
+
+        Returns:
+            ``CTRLLogRecord`` with the current scalar state and latest
+            diagnostics.  Diagnostic fields are ``None`` before any run.
+        """
+        from src.train.log_record import record_from_snapshot
+        return record_from_snapshot(self.snapshot())
 
     @property
     def history(self) -> tuple[CTRLTrainerSnapshot, ...]:

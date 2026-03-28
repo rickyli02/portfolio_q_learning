@@ -379,13 +379,16 @@ Implemented and verified so far:
   - single outer `w` update
   - single combined outer iteration
   - fixed-length outer-loop schedule
+  - stateful trainer shell with validation, snapshot, history, and reset boundaries
+  - in-memory checkpoint payload export/restore plus file-based save/load helpers
+  - in-memory scalar logging-record extraction helpers
 - smoke and long-verification tooling under `scripts/`
-- focused unit-test coverage, with the current unit suite at `402 passed`
+- minimal CTRL demo script under `scripts/run_ctrl_demo.py`
+- focused unit-test coverage, with the current unit suite at `526 passed`
 
 Not yet implemented:
 
-- trainer loops for CTRL and related baselines beyond the current bounded trainer helpers
-- trainer-facing stateful shells and broader trainer abstractions beyond the current bounded helpers
+- full trainer-loop and experiment-management infrastructure beyond the current bounded trainer helpers
 - offline / online trainers
 - evaluation and backtesting baselines
 - plotting and reporting utilities
@@ -393,6 +396,7 @@ Not yet implemented:
 Current validation utilities include:
 
 - `scripts/run_smoke_test.py` for fast integration checks
+- `scripts/run_ctrl_demo.py` for a tiny end-to-end CTRL demo run
 - `scripts/run_long_verification.py` for stage-based longer verification with saved output artifacts
 
 If your local `.venv` exposes only `python3` rather than `python`, use whichever interpreter exists. For example:

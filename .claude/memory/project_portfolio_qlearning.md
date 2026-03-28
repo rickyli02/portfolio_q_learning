@@ -21,13 +21,22 @@ Last updated: 2026-03-27
 - Phase 10A CTRL outer-loop w update primitive: approved
 - Phase 10B CTRL single outer-iteration foundation: approved
 - Phase 10C CTRL fixed-length outer-loop schedule foundation: approved
-- Active bounded task: Phase 11A stateful CTRL trainer shell foundation
+- Phase 11A stateful CTRL trainer shell foundation: approved
+- Phase 11B stateful trainer validation boundary: approved
+- Phase 12A trainer snapshot and scalar-summary foundation: approved
+- Phase 12B in-memory trainer history foundation: approved
+- Phase 12C trainer reset boundary foundation: approved
+- Phase 13A minimal CTRL demo script foundation: approved
+- Phase 13B in-memory checkpoint payload foundation: approved
+- Phase 13C checkpoint file IO foundation: approved
+- Phase 14A in-memory trainer logging record foundation: approved
+- Active bounded task: none; Claude is paused pending the next bounded task
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `402 passed`
-- `tests/unit/test_ctrl_trainer.py -q` has reached `83 passed`
-- `scripts/run_smoke_test.py` has reached `7/7 passed`
+- `tests/unit -q` has reached `526 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `207 passed`
+- `scripts/run_smoke_test.py` has reached `8/8 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - subprocess-isolated import timing normalized after recreating `.venv` locally:
   - `numpy ~= 0.069s`
@@ -40,8 +49,8 @@ Last updated: 2026-03-27
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - add a thin stateful trainer-facing shell over the approved functional helpers
-  - keep the trainer layer bounded and avoid opening full trainer/checkpoint/logging infrastructure yet
+  - keep extending the trainer layer in bounded, testable slices
+  - keep logging/checkpoint/run-management work narrow and staged rather than opening full infrastructure at once
 
 ## Stable decisions
 
