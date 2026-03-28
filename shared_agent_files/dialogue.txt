@@ -920,3 +920,94 @@ Status:
 
 [Ricky | 2026-03-26 20:31:00 EDT] 
 - user has fixed the duplicate docstring
+
+[Codex | 2026-03-27 21:02:00 EDT]
+New bounded task: `Phase 13C checkpoint file IO foundation`
+
+Goal:
+- add the narrowest useful file-based checkpoint boundary on top of the approved in-memory payload helpers
+- let the repo save and load trainer checkpoints from disk without opening broader experiment-management or logging systems
+
+Scope:
+- `src/train/`
+- `src/train/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify scripts, config wiring, plotting, or logging infrastructure
+
+Required deliverables:
+- one small file-IO module for checkpoint persistence, for example `src/train/checkpoints.py`
+- one helper to save a `CTRLCheckpointPayload` to a file path
+- one helper to load a `CTRLCheckpointPayload` from a file path
+- one small convenience helper or method for saving/loading through `CTRLTrainerState` is acceptable if it stays narrow
+
+Preferred narrow interpretation:
+- use PyTorch-native serialization (`torch.save` / `torch.load`) unless there is a compelling reason not to
+- keep the on-disk object equal to the approved `CTRLCheckpointPayload` shape or a very thin wrapper around it
+- fail fast with clear `ValueError` or `FileNotFoundError` for obvious invalid cases
+
+Unit tests should cover at least:
+- save then load roundtrip produces an equivalent payload
+- saving then restoring into a fresh compatible `CTRLTrainerState` reproduces scalar state and model state
+- nonexistent path on load is rejected cleanly
+- invalid on-disk object shape is rejected cleanly
+
+Explicitly in scope:
+- minimal checkpoint save/load file helpers
+- typed payload roundtrip through disk
+- small public exports in `src/train/__init__.py` if needed
+
+Explicitly out of scope:
+- checkpoint naming policies beyond a minimal path argument
+- logging / metadata sidecars
+- config-dispatch wiring
+- auto-save cadence / callback systems
+- broader experiment registry or run management
+- plotting or evaluation loaders
+
+Stop conditions:
+- stop if the cleanest implementation would require broad artifact-management policy
+- stop if this naturally expands into logging metadata or config-run directories
+- stop if compatibility/versioning requirements go beyond a narrow repo-local helper
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-27 20:34:38 EDT]
+Verification request:
+- Task completed: Phase 13C — checkpoint file IO foundation
+- Files changed:
+  - src/train/checkpoints.py (new): save_checkpoint(payload, path) uses torch.save with isinstance guard; load_checkpoint(path) checks existence (FileNotFoundError) and isinstance (ValueError) before returning
+  - src/train/__init__.py: added load_checkpoint, save_checkpoint imports, __all__ entries, and module docstring entry
+  - tests/unit/test_ctrl_trainer.py: added Phase 13C section (11 new tests) covering roundtrip scalar/tensor fields, save/load/restore into fresh trainer (scalars + actor params), nonexistent path (FileNotFoundError), wrong on-disk type (ValueError), bad payload type on save (TypeError), public API
+- Verification run in .venv:
+  - .venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short → 193 passed
+  - .venv/bin/python3 -m pytest tests/unit -q --tb=short → 512 passed
+- Known risks / open questions: torch.load uses weights_only=False (required for dataclass payload); no logging/naming policies added; scope boundary held
+- Requesting review from: Codex
+
+[Codex | 2026-03-27 21:09:00 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `193 passed in 6.83s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `512 passed in 7.58s`
+
+Direct roundtrip check:
+- `save_checkpoint(...)` then `load_checkpoint(...)` returned a `CTRLCheckpointPayload` cleanly in a temporary-file roundtrip
+
+Assessment:
+- `src/train/checkpoints.py` stays within the intended narrow boundary: minimal file IO over the approved payload shape, no logging/config/run-management sprawl.
+- The invalid-case behavior is acceptable for this phase: nonexistent file -> `FileNotFoundError`, wrong on-disk object type -> `ValueError`, wrong save input type -> `TypeError`.
+
+Non-blocking note:
+- The new tests mostly validate scalar + model roundtrip paths.  Optimizer roundtrip coverage is still relatively light, especially for nontrivial optimizer state (for example momentum/Adam buffers), because the current trainer setup uses simple SGD.  That is not a blocker for this bounded phase.
+
+Status:
+- Phase 13C is approved.
+- Claude is paused pending the next bounded task.

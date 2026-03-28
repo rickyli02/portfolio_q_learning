@@ -9,11 +9,13 @@ Current primitives:
 - Phase 11A/11B: stateful trainer shell with persistent current_w and validation boundary (``CTRLTrainerState``).
 - Phase 12A/12B/12C: read-only snapshot, in-memory history, and scalar-state reset (``CTRLTrainerSnapshot``).
 - Phase 13B: in-memory checkpoint payload capture and restore (``CTRLCheckpointPayload``).
+- Phase 13C: checkpoint file IO helpers (``save_checkpoint``, ``load_checkpoint``).
 
 Future phases will add checkpoint and logging infrastructure, config-dispatch
 wiring, and full offline/online trainer classes.  Those are not present yet.
 """
 
+from src.train.checkpoints import load_checkpoint, save_checkpoint
 from src.train.ctrl_outer_iter import CTRLOuterIterResult, ctrl_outer_iter
 from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
 from src.train.ctrl_runner import CTRLRunResult, ctrl_train_run
@@ -24,6 +26,8 @@ from src.train.w_update import CTRLWUpdateResult, ctrl_w_update
 __all__ = [
     "CTRLCheckpointPayload",
     "CTRLOuterIterResult",
+    "load_checkpoint",
+    "save_checkpoint",
     "CTRLOuterLoopResult",
     "CTRLRunResult",
     "CTRLStepResult",

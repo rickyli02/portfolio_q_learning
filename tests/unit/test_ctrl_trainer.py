@@ -1972,3 +1972,124 @@ def test_phase13b_public_api_imports():
     assert callable(state.restore_checkpoint)
     payload = state.export_checkpoint()
     assert isinstance(payload, CTRLCheckpointPayload)
+
+
+# ===========================================================================
+# Phase 13C — checkpoint file IO (save_checkpoint / load_checkpoint)
+# ===========================================================================
+
+from src.train.checkpoints import load_checkpoint, save_checkpoint
+
+
+# --- save / load roundtrip ---
+
+def test_checkpoint_roundtrip_returns_payload_type(tmp_path):
+    """save then load roundtrip returns a CTRLCheckpointPayload."""
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(payload, ckpt_file)
+    loaded = load_checkpoint(ckpt_file)
+    assert isinstance(loaded, CTRLCheckpointPayload)
+
+
+def test_checkpoint_roundtrip_scalar_fields(tmp_path):
+    """Roundtrip preserves all scalar fields."""
+    state = _make_trainer_state(w_init=1.7, target_return_z=1.05, w_step_size=0.08)
+    payload = state.export_checkpoint()
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(payload, ckpt_file)
+    loaded = load_checkpoint(ckpt_file)
+    assert loaded.current_w == pytest.approx(payload.current_w)
+    assert loaded.target_return_z == pytest.approx(payload.target_return_z)
+    assert loaded.w_step_size == pytest.approx(payload.w_step_size)
+
+
+def test_checkpoint_roundtrip_actor_state_dict(tmp_path):
+    """Roundtrip preserves actor state_dict tensor values."""
+    import torch
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(payload, ckpt_file)
+    loaded = load_checkpoint(ckpt_file)
+    for k in payload.actor_state_dict:
+        assert torch.allclose(loaded.actor_state_dict[k], payload.actor_state_dict[k]), (
+            f"actor_state_dict key '{k}' mismatch after roundtrip"
+        )
+
+
+def test_checkpoint_roundtrip_critic_state_dict(tmp_path):
+    """Roundtrip preserves critic state_dict tensor values."""
+    import torch
+    state = _make_trainer_state()
+    payload = state.export_checkpoint()
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(payload, ckpt_file)
+    loaded = load_checkpoint(ckpt_file)
+    for k in payload.critic_state_dict:
+        assert torch.allclose(loaded.critic_state_dict[k], payload.critic_state_dict[k]), (
+            f"critic_state_dict key '{k}' mismatch after roundtrip"
+        )
+
+
+# --- save / load / restore into fresh trainer ---
+
+def test_checkpoint_save_load_restore_scalar_state(tmp_path):
+    """save → load → restore_checkpoint reproduces scalar trainer state."""
+    state_a = _make_trainer_state(w_init=1.0)
+    result = state_a.run_outer_iter(n_updates=1, entropy_temp=0.01, base_seed=0)
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(state_a.export_checkpoint(), ckpt_file)
+
+    state_b = _make_trainer_state(w_init=99.0)
+    state_b.restore_checkpoint(load_checkpoint(ckpt_file))
+    assert state_b.current_w == pytest.approx(result.w_next)
+
+
+def test_checkpoint_save_load_restore_actor_params(tmp_path):
+    """save → load → restore_checkpoint reproduces actor model parameters."""
+    import torch
+    state_a = _make_trainer_state()
+    state_a.run_outer_iter(n_updates=2, entropy_temp=0.01, base_seed=0)
+    payload_a = state_a.export_checkpoint()
+    ckpt_file = tmp_path / "ckpt.pt"
+    save_checkpoint(payload_a, ckpt_file)
+
+    state_b = _make_trainer_state()
+    state_b.restore_checkpoint(load_checkpoint(ckpt_file))
+    for k, v in state_b.actor.state_dict().items():
+        assert torch.allclose(v, payload_a.actor_state_dict[k]), (
+            f"actor param '{k}' mismatch after save/load/restore"
+        )
+
+
+# --- invalid cases are rejected ---
+
+def test_checkpoint_load_nonexistent_path_raises(tmp_path):
+    """load_checkpoint raises FileNotFoundError for a nonexistent path."""
+    with pytest.raises(FileNotFoundError):
+        load_checkpoint(tmp_path / "does_not_exist.pt")
+
+
+def test_checkpoint_load_invalid_shape_raises(tmp_path):
+    """load_checkpoint raises ValueError if the file contains the wrong type."""
+    import torch
+    bad_file = tmp_path / "bad.pt"
+    torch.save({"not": "a payload"}, bad_file)
+    with pytest.raises(ValueError, match="CTRLCheckpointPayload"):
+        load_checkpoint(bad_file)
+
+
+def test_checkpoint_save_invalid_payload_type_raises(tmp_path):
+    """save_checkpoint raises TypeError if passed a non-payload object."""
+    with pytest.raises(TypeError):
+        save_checkpoint({"not": "a payload"}, tmp_path / "ckpt.pt")
+
+
+# --- public API ---
+
+def test_phase13c_public_api_imports():
+    from src.train import load_checkpoint, save_checkpoint
+    assert callable(save_checkpoint)
+    assert callable(load_checkpoint)
