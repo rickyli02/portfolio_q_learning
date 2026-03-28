@@ -1262,3 +1262,144 @@ Verification request (Phase 15I follow-up):
   - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 689 passed
 - Known risks / open questions: none
 - Requesting review from: Codex
+
+[Codex | 2026-03-28 13:29:49 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` -> `65 passed in 4.31s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` -> `33 passed in 4.08s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` -> `12 passed in 4.02s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short` -> `24 passed in 4.02s`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short` -> `14 passed in 4.03s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `689 passed in 10.55s`
+
+Assessment:
+- The follow-up closes the only blocking review gap from Phase 15I: the aggregate derivation tests now compute expected values from independently constructed `eval_summary(...)` results and manual aggregate calculations, rather than reusing `eval_aggregate(...)` as the oracle.
+- `src/eval/derive.py` remains within the intended narrow scope: pure derivation from existing record containers back to approved scalar evaluation objects, with no rollout replay, file IO expansion, or backtesting/report sprawl.
+
+Residual note:
+- `aggregate_from_record_set(...)` still assumes the record set is non-empty and internally target-consistent, which matches the current upstream `eval_record_set(...)` contract and is not a blocking issue for this phase.
+
+Status:
+- Phase 15I is approved.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-28 13:30:33 EDT]
+New bounded task: `Phase 15J derived scalar bundle foundation`
+
+Goal:
+- add the narrowest useful typed bundle that packages the scalar outputs derived from a `CTRLEvalRecordSet`
+- let later evaluation/report code consume one coherent derived object instead of manually threading a `(summaries, aggregate)` tuple alongside the originating seed set
+
+Why this is next:
+- `src/eval/` now has:
+  - path-level deterministic record sets
+  - pure derivation back to per-seed `CTRLEvalSummary` plus `CTRLEvalAggregate`
+- the next clean seam is a small typed scalar bundle over those derived objects, so later code can pass around one inspection-friendly evaluation result without reopening plotting or broader backtesting infrastructure
+
+Scope:
+- `src/eval/`
+- `src/eval/__init__.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `src/algos/ctrl.py`, `src/train/`, `scripts/`, plotting/backtest modules, or config wiring
+
+Required deliverables:
+- one minimal typed bundle structure, for example `CTRLEvalScalarBundle`, containing at least:
+  - the explicit seeds in seed order
+  - the derived per-seed `CTRLEvalSummary` entries
+  - the derived `CTRLEvalAggregate`
+- one helper that takes a `CTRLEvalRecordSet` and returns that typed bundle
+- the helper must build on the approved derivation layer rather than recomputing scalar logic from scratch
+
+Preferred narrow interpretation:
+- accept a `CTRLEvalRecordSet`
+- preserve seed order exactly
+- use existing helpers such as:
+  - `summary_from_record(...)`
+  - `aggregate_from_record_set(...)`
+  - or equivalent narrow local reuse
+- keep this as pure packaging / derivation only
+- do not add file IO, plotting, report formatting, or benchmark logic
+
+Acceptable shape:
+- either extend `src/eval/derive.py`
+- or add one similarly narrow new module under `src/eval/`
+- one possible API shape:
+  - `bundle_from_record_set(record_set) -> CTRLEvalScalarBundle`
+- a different naming choice is acceptable if it is equally narrow and explicit
+
+Explicit testing requirements:
+- tests must prove exact bundle behavior, not just plausibility
+- at least one test must compare the returned bundle against independently constructed references from the same seeds:
+  - `record_set.seeds`
+  - `[eval_summary(..., seed=s) for s in seeds]`
+  - a manual aggregate over that summary list
+- compare every relevant field where applicable:
+  - exact seed list equality
+  - every summary field for every derived summary:
+    - `terminal_wealth`
+    - `initial_wealth`
+    - `n_steps`
+    - `min_wealth`
+    - `max_wealth`
+    - `target_return_z`
+    - `terminal_gap`
+  - every aggregate field:
+    - `n_episodes`
+    - `mean_terminal_wealth`
+    - `min_terminal_wealth`
+    - `max_terminal_wealth`
+    - `mean_terminal_gap`
+    - `target_hit_rate`
+- include behavior when `target_return_z` is provided
+- include behavior when `target_return_z` is omitted
+- include public API export coverage if added
+- avoid weak tests that only check counts, tuple length, or inequalities
+
+Unit tests should cover at least:
+- returned object type
+- exact seed preservation
+- exact per-summary derivation in seed order
+- exact aggregate contents
+- with-target behavior
+- no-target behavior
+- plain scalar aggregate field types
+- public API exports if added
+
+Explicitly in scope:
+- typed scalar bundle over already-approved evaluation objects
+- one pure helper from `CTRLEvalRecordSet`
+- exact unit coverage for bundle correctness
+
+Explicitly out of scope:
+- file IO changes
+- re-running evaluation inside the bundle helper
+- plotting/report generation
+- benchmark comparison tables
+- broader backtesting framework
+- trainer integration
+- stochastic evaluation
+
+Stop conditions:
+- stop if this naturally expands into a report/bundle framework beyond one minimal typed scalar bundle
+- stop if the cleanest implementation would require broader changes outside `src/eval/`
+- stop if the task starts duplicating scalar derivation logic instead of reusing approved helpers
+
+Implementation note:
+- keep the existing non-blocking assumptions unchanged:
+  - record containers remain minimally mutable
+  - bundle construction may rely on the current upstream contract that record sets are non-empty and internally target-consistent
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO

@@ -1,8 +1,8 @@
-"""Pure derivation helpers from record types to scalar eval objects — Phase 15I.
+"""Pure derivation helpers from record types to scalar eval objects — Phase 15I/15J.
 
-Provides helpers that derive ``CTRLEvalSummary`` and ``CTRLEvalAggregate``
-directly from already-evaluated ``CTRLEvalRecord`` / ``CTRLEvalRecordSet``
-objects without re-running any evaluation rollout.
+Provides helpers that derive ``CTRLEvalSummary``, ``CTRLEvalAggregate``, and
+``CTRLEvalScalarBundle`` directly from already-evaluated ``CTRLEvalRecord`` /
+``CTRLEvalRecordSet`` objects without re-running any evaluation rollout.
 
 SCOPE BOUNDARY
 --------------
@@ -20,10 +20,32 @@ These belong in future bounded tasks.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from src.eval.aggregate import CTRLEvalAggregate
 from src.eval.record import CTRLEvalRecord
 from src.eval.record_set import CTRLEvalRecordSet
 from src.eval.summary import CTRLEvalSummary
+
+
+@dataclass(frozen=True)
+class CTRLEvalScalarBundle:
+    """Typed scalar bundle derived from one ``CTRLEvalRecordSet`` — Phase 15J.
+
+    Collects the seeds, per-seed scalar summaries, and the scalar aggregate in
+    one inspection-friendly object.  All fields are plain Python scalars or
+    lists of plain Python scalars; no tensors are retained.
+
+    Attributes:
+        seeds:      Seeds used for evaluation, in evaluation order.
+        summaries:  Per-seed ``CTRLEvalSummary`` in the same order as
+                    ``seeds``.
+        aggregate:  ``CTRLEvalAggregate`` computed over all summaries.
+    """
+
+    seeds: list[int]
+    summaries: list[CTRLEvalSummary]
+    aggregate: CTRLEvalAggregate
 
 
 def summary_from_record(record: CTRLEvalRecord) -> CTRLEvalSummary:
@@ -102,3 +124,25 @@ def aggregate_from_record_set(
         target_hit_rate=target_hit_rate,
     )
     return summaries, aggregate
+
+
+def bundle_from_record_set(record_set: CTRLEvalRecordSet) -> CTRLEvalScalarBundle:
+    """Derive a typed scalar bundle from a ``CTRLEvalRecordSet``.
+
+    Builds per-seed summaries and a scalar aggregate by delegating to
+    ``aggregate_from_record_set``, then wraps them with the seed list into
+    a ``CTRLEvalScalarBundle``.  No rollout is re-executed.
+
+    Args:
+        record_set: A fully populated ``CTRLEvalRecordSet``.
+
+    Returns:
+        ``CTRLEvalScalarBundle`` containing the seeds, per-seed summaries,
+        and aggregate.
+    """
+    summaries, aggregate = aggregate_from_record_set(record_set)
+    return CTRLEvalScalarBundle(
+        seeds=list(record_set.seeds),
+        summaries=summaries,
+        aggregate=aggregate,
+    )
