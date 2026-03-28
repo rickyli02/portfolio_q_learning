@@ -557,3 +557,353 @@ def test_phase15c_public_api_imports():
     from src.eval import CTRLEvalAggregate as _A, eval_aggregate as _f
     assert _A is CTRLEvalAggregate
     assert callable(_f)
+
+
+# ===========================================================================
+# Phase 15D — evaluation aggregate file IO foundation
+# ===========================================================================
+
+from src.eval.aggregate_io import load_eval_aggregates, save_eval_aggregates
+
+
+def _make_aggregate(
+    n_episodes: int = 4,
+    mean_terminal_wealth: float = 1.05,
+    min_terminal_wealth: float = 0.98,
+    max_terminal_wealth: float = 1.12,
+    mean_terminal_gap: float | None = -0.05,
+    target_hit_rate: float | None = 0.75,
+) -> CTRLEvalAggregate:
+    return CTRLEvalAggregate(
+        n_episodes=n_episodes,
+        mean_terminal_wealth=mean_terminal_wealth,
+        min_terminal_wealth=min_terminal_wealth,
+        max_terminal_wealth=max_terminal_wealth,
+        mean_terminal_gap=mean_terminal_gap,
+        target_hit_rate=target_hit_rate,
+    )
+
+
+# --- single-record exact roundtrip ---
+
+def test_save_load_single_aggregate_exact_roundtrip(tmp_path):
+    """Save one CTRLEvalAggregate and load it back; every field matches exactly."""
+    agg = _make_aggregate()
+    p = tmp_path / "agg.jsonl"
+    save_eval_aggregates([agg], p)
+    loaded = load_eval_aggregates(p)
+    assert len(loaded) == 1
+    r = loaded[0]
+    assert r.n_episodes == agg.n_episodes
+    assert r.mean_terminal_wealth == pytest.approx(agg.mean_terminal_wealth)
+    assert r.min_terminal_wealth == pytest.approx(agg.min_terminal_wealth)
+    assert r.max_terminal_wealth == pytest.approx(agg.max_terminal_wealth)
+    assert r.mean_terminal_gap == pytest.approx(agg.mean_terminal_gap)
+    assert r.target_hit_rate == pytest.approx(agg.target_hit_rate)
+
+
+# --- None optional fields roundtrip ---
+
+def test_save_load_aggregate_none_optional_fields_roundtrip(tmp_path):
+    """mean_terminal_gap=None and target_hit_rate=None survive the roundtrip."""
+    agg = _make_aggregate(mean_terminal_gap=None, target_hit_rate=None)
+    p = tmp_path / "agg_none.jsonl"
+    save_eval_aggregates([agg], p)
+    loaded = load_eval_aggregates(p)
+    assert loaded[0].mean_terminal_gap is None
+    assert loaded[0].target_hit_rate is None
+
+
+# --- multiple-record roundtrip preserving order ---
+
+def test_save_load_multiple_aggregates_preserves_order(tmp_path):
+    """Multiple aggregates are saved and loaded in their original order."""
+    aggs = [_make_aggregate(mean_terminal_wealth=float(i)) for i in range(5)]
+    p = tmp_path / "agg_multi.jsonl"
+    save_eval_aggregates(aggs, p)
+    loaded = load_eval_aggregates(p)
+    assert len(loaded) == 5
+    for i, r in enumerate(loaded):
+        assert r.mean_terminal_wealth == pytest.approx(float(i))
+
+
+# --- empty list roundtrip ---
+
+def test_save_load_empty_list_aggregates(tmp_path):
+    """Saving an empty list produces a file that loads back as an empty list."""
+    p = tmp_path / "agg_empty.jsonl"
+    save_eval_aggregates([], p)
+    loaded = load_eval_aggregates(p)
+    assert loaded == []
+
+
+# --- loaded entries are CTRLEvalAggregate instances ---
+
+def test_loaded_aggregate_entries_are_correct_type(tmp_path):
+    """Each entry returned by load_eval_aggregates is a CTRLEvalAggregate."""
+    p = tmp_path / "agg_type.jsonl"
+    save_eval_aggregates([_make_aggregate(), _make_aggregate(n_episodes=8)], p)
+    loaded = load_eval_aggregates(p)
+    assert all(isinstance(r, CTRLEvalAggregate) for r in loaded)
+
+
+# --- overwrite semantics ---
+
+def test_save_eval_aggregates_overwrites_existing_file(tmp_path):
+    """save_eval_aggregates overwrites an existing file rather than appending."""
+    p = tmp_path / "agg_overwrite.jsonl"
+    save_eval_aggregates([_make_aggregate(n_episodes=1)], p)
+    save_eval_aggregates([_make_aggregate(n_episodes=99)], p)
+    loaded = load_eval_aggregates(p)
+    assert len(loaded) == 1
+    assert loaded[0].n_episodes == 99
+
+
+# --- error cases ---
+
+def test_load_eval_aggregates_nonexistent_path_raises(tmp_path):
+    """load_eval_aggregates raises FileNotFoundError for a nonexistent path."""
+    with pytest.raises(FileNotFoundError):
+        load_eval_aggregates(tmp_path / "does_not_exist.jsonl")
+
+
+def test_load_eval_aggregates_malformed_json_raises(tmp_path):
+    """load_eval_aggregates raises ValueError for invalid JSON on a line."""
+    p = tmp_path / "bad.jsonl"
+    p.write_text("not valid json\n")
+    with pytest.raises(ValueError, match="Malformed JSON"):
+        load_eval_aggregates(p)
+
+
+def test_load_eval_aggregates_missing_required_field_raises(tmp_path):
+    """load_eval_aggregates raises ValueError when a required field is absent."""
+    import json as _json
+    p = tmp_path / "missing.jsonl"
+    # omit mean_terminal_wealth
+    p.write_text(
+        _json.dumps({
+            "n_episodes": 4,
+            "min_terminal_wealth": 0.9,
+            "max_terminal_wealth": 1.1,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="Missing required field"):
+        load_eval_aggregates(p)
+
+
+def test_load_eval_aggregates_wrong_type_required_float_raises(tmp_path):
+    """load_eval_aggregates raises ValueError for a string in a required float field."""
+    import json as _json
+    p = tmp_path / "bad_type.jsonl"
+    p.write_text(
+        _json.dumps({
+            "n_episodes": 4,
+            "mean_terminal_wealth": "oops",
+            "min_terminal_wealth": 0.9,
+            "max_terminal_wealth": 1.1,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="mean_terminal_wealth"):
+        load_eval_aggregates(p)
+
+
+def test_load_eval_aggregates_float_in_n_episodes_raises(tmp_path):
+    """load_eval_aggregates raises ValueError for a float in the n_episodes integer field."""
+    import json as _json
+    p = tmp_path / "bad_int.jsonl"
+    p.write_text(
+        _json.dumps({
+            "n_episodes": 4.5,
+            "mean_terminal_wealth": 1.05,
+            "min_terminal_wealth": 0.9,
+            "max_terminal_wealth": 1.1,
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="n_episodes"):
+        load_eval_aggregates(p)
+
+
+def test_load_eval_aggregates_wrong_type_optional_float_raises(tmp_path):
+    """load_eval_aggregates raises ValueError for a string in an optional float field."""
+    import json as _json
+    p = tmp_path / "bad_opt.jsonl"
+    p.write_text(
+        _json.dumps({
+            "n_episodes": 4,
+            "mean_terminal_wealth": 1.05,
+            "min_terminal_wealth": 0.9,
+            "max_terminal_wealth": 1.1,
+            "target_hit_rate": "bad",
+        }) + "\n"
+    )
+    with pytest.raises(ValueError, match="target_hit_rate"):
+        load_eval_aggregates(p)
+
+
+# --- integration: roundtrip from eval_aggregate output ---
+
+def test_save_load_aggregate_from_eval_aggregate_output(tmp_path):
+    """Aggregates produced by eval_aggregate survive the file roundtrip with exact fields."""
+    actor = _make_actor()
+    env = _make_env(n_steps=5)
+    _, orig = eval_aggregate(actor, env, w=1.0, seeds=[0, 1, 2], target_return_z=1.05)
+    p = tmp_path / "live_agg.jsonl"
+    save_eval_aggregates([orig], p)
+    loaded = load_eval_aggregates(p)
+    assert len(loaded) == 1
+    r = loaded[0]
+    assert r.n_episodes == orig.n_episodes
+    assert r.mean_terminal_wealth == pytest.approx(orig.mean_terminal_wealth)
+    assert r.min_terminal_wealth == pytest.approx(orig.min_terminal_wealth)
+    assert r.max_terminal_wealth == pytest.approx(orig.max_terminal_wealth)
+    assert r.mean_terminal_gap == pytest.approx(orig.mean_terminal_gap)
+    assert r.target_hit_rate == pytest.approx(orig.target_hit_rate)
+
+
+# --- public API export ---
+
+def test_phase15d_public_api_imports():
+    """save_eval_aggregates and load_eval_aggregates are exported from src.eval."""
+    from src.eval import load_eval_aggregates as _load, save_eval_aggregates as _save
+    assert callable(_save)
+    assert callable(_load)
+
+
+# --- Phase 15D follow-up: non-object JSON line rejected as ValueError ---
+
+def test_load_eval_aggregates_json_array_line_raises(tmp_path):
+    """load_eval_aggregates raises ValueError for a valid JSON array line (not an object)."""
+    p = tmp_path / "array_line.jsonl"
+    p.write_text("[1, 2, 3]\n")
+    with pytest.raises(ValueError, match="JSON object"):
+        load_eval_aggregates(p)
+
+
+# ===========================================================================
+# Phase 15E — deterministic evaluation trajectory record foundation
+# ===========================================================================
+
+from src.eval.record import CTRLEvalRecord, eval_record
+
+
+# --- return type ---
+
+def test_eval_record_returns_eval_record_instance():
+    """eval_record returns a CTRLEvalRecord instance."""
+    actor = _make_actor()
+    env = _make_env()
+    rec = eval_record(actor, env, w=1.0, seed=0)
+    assert isinstance(rec, CTRLEvalRecord)
+
+
+# --- exact field match against evaluate_ctrl_deterministic ---
+
+def test_eval_record_tensor_fields_match_raw_deterministic_result():
+    """Tensor fields in CTRLEvalRecord exactly match evaluate_ctrl_deterministic output."""
+    from src.algos.ctrl import evaluate_ctrl_deterministic
+    actor = _make_actor()
+    env = _make_env(n_steps=5)
+    seed = 42
+    raw = evaluate_ctrl_deterministic(actor, env, w=1.0, seed=seed)
+    rec = eval_record(actor, env, w=1.0, seed=seed)
+
+    assert torch.allclose(rec.times, raw.times)
+    assert torch.allclose(rec.wealth_path, raw.wealth_path)
+    assert torch.allclose(rec.actions, raw.actions)
+
+
+def test_eval_record_scalar_fields_match_raw_deterministic_result():
+    """Scalar fields in CTRLEvalRecord exactly match values derived from raw result."""
+    from src.algos.ctrl import evaluate_ctrl_deterministic
+    actor = _make_actor()
+    env = _make_env(n_steps=5)
+    seed = 7
+    raw = evaluate_ctrl_deterministic(actor, env, w=1.0, seed=seed)
+    rec = eval_record(actor, env, w=1.0, seed=seed)
+
+    assert rec.terminal_wealth == pytest.approx(float(raw.terminal_wealth))
+    assert rec.initial_wealth == pytest.approx(float(raw.wealth_path[0]))
+    assert rec.n_steps == int(raw.times.shape[0])
+    assert rec.min_wealth == pytest.approx(float(raw.wealth_path.min()))
+    assert rec.max_wealth == pytest.approx(float(raw.wealth_path.max()))
+
+
+# --- tensor shapes ---
+
+def test_eval_record_tensor_shapes():
+    """CTRLEvalRecord tensor shapes match expected dimensions."""
+    actor = _make_actor()
+    env = _make_env(n_steps=6)
+    rec = eval_record(actor, env, w=1.0, seed=0)
+    assert rec.times.shape == (6,)
+    assert rec.wealth_path.shape == (7,)   # n_steps + 1
+    assert rec.actions.shape[0] == 6
+
+
+# --- scalar field types ---
+
+def test_eval_record_scalar_fields_are_plain_python_types():
+    """Plain scalar fields are float or int, not tensors."""
+    actor = _make_actor()
+    env = _make_env()
+    rec = eval_record(actor, env, w=1.0, target_return_z=1.1, seed=0)
+    assert isinstance(rec.terminal_wealth, float)
+    assert isinstance(rec.initial_wealth, float)
+    assert isinstance(rec.n_steps, int)
+    assert isinstance(rec.min_wealth, float)
+    assert isinstance(rec.max_wealth, float)
+    assert isinstance(rec.target_return_z, float)
+    assert isinstance(rec.terminal_gap, float)
+    assert not isinstance(rec.terminal_wealth, torch.Tensor)
+
+
+# --- target_return_z and terminal_gap ---
+
+def test_eval_record_with_z_populates_terminal_gap():
+    """When target_return_z is provided, terminal_gap equals x_T - z."""
+    actor = _make_actor()
+    env = _make_env()
+    z = 1.05
+    rec = eval_record(actor, env, w=1.0, target_return_z=z, seed=0)
+    assert rec.target_return_z == pytest.approx(z)
+    assert rec.terminal_gap == pytest.approx(rec.terminal_wealth - z)
+
+
+def test_eval_record_without_z_gap_is_none():
+    """When target_return_z is omitted, both target fields are None."""
+    actor = _make_actor()
+    env = _make_env()
+    rec = eval_record(actor, env, w=1.0, seed=0)
+    assert rec.target_return_z is None
+    assert rec.terminal_gap is None
+
+
+# --- reproducibility ---
+
+def test_eval_record_reproducible_with_same_seed():
+    """Two eval_record calls with the same seed produce identical tensor paths."""
+    actor = _make_actor()
+    env = _make_env()
+    r1 = eval_record(actor, env, w=1.0, seed=3)
+    r2 = eval_record(actor, env, w=1.0, seed=3)
+    assert torch.allclose(r1.wealth_path, r2.wealth_path)
+    assert r1.terminal_wealth == pytest.approx(r2.terminal_wealth)
+
+
+# --- n_steps matches env ---
+
+def test_eval_record_n_steps_matches_env():
+    """n_steps in record matches the environment's configured n_steps."""
+    actor = _make_actor()
+    env = _make_env(n_steps=8)
+    rec = eval_record(actor, env, w=1.0, seed=0)
+    assert rec.n_steps == 8
+
+
+# --- public API export ---
+
+def test_phase15e_public_api_imports():
+    """CTRLEvalRecord and eval_record are exported from src.eval."""
+    from src.eval import CTRLEvalRecord as _R, eval_record as _f
+    assert _R is CTRLEvalRecord
+    assert callable(_f)
