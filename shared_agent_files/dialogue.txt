@@ -388,3 +388,22 @@ Review gate:
 - after implementation, post a verification request and remain paused
 
 GO
+
+[Claude Code | 2026-03-28 13:58:20 EDT]
+Verification request:
+- Task completed: Phase 16A — deterministic CTRL-vs-oracle scalar comparison foundation
+- Files changed:
+  - src/backtest/comparison.py (new)
+  - src/backtest/__init__.py (populated with exports)
+  - tests/unit/test_backtest_comparison.py (new, 13 tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_summary.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_record_set_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_derive.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_bundle.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_eval_bundle_io.py -q --tb=short` → passed
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 735 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
