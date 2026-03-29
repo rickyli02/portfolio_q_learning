@@ -52,37 +52,43 @@ As of 2026-03-29:
 - Phase 16A deterministic CTRL-vs-oracle scalar comparison under `src/backtest/` is approved.
 - Phase 16B trainer/demo pipeline stress-case coverage is approved.
 - Phase 16C trainer-to-backtest bridge and tiny comparison demo is approved.
+- Phase 16D smoke-level hardening for both demo entrypoints is approved.
+- Phase 17A numerical-safety diagnostics foundation is approved.
+- Phase 17B oracle conditioning-warning boundary is approved.
+- Phase 17C dtype-sensitivity comparison foundation is approved.
+- Phase 17D dtype-comparison demo/report seam is approved.
+- Phase 18A train-compare scalar report foundation is approved.
 - Latest verified outputs with current repo state are:
-  - current evaluation-summary verification:
-    - `tests/unit/test_eval_summary.py -q -> 65 passed`
-  - current record IO verification:
-    - `tests/unit/test_eval_record_io.py -q -> 33 passed`
-  - current record-set verification:
-    - `tests/unit/test_eval_record_set.py -q -> 12 passed`
-  - current record-set IO verification:
-    - `tests/unit/test_eval_record_set_io.py -q -> 24 passed`
-  - current scalar-derivation verification:
-    - `tests/unit/test_eval_derive.py -q -> 14 passed`
-  - current scalar-bundle verification:
-    - `tests/unit/test_eval_bundle.py -q -> 11 passed`
   - current backtest comparison verification:
     - `tests/unit/test_backtest_comparison.py -q -> 15 passed`
   - current trainer-to-backtest bridge verification:
     - `tests/unit/test_train_compare.py -q -> 17 passed`
+  - current train-compare scalar report verification:
+    - `tests/unit/test_train_compare_report.py -q -> 16 passed`
   - current trainer stress verification:
     - `tests/unit/test_trainer_stress.py -q -> 12 passed`
   - current trainer-step verification:
     - `tests/unit/test_ctrl_trainer.py -q -> 222 passed`
+  - current numerics verification:
+    - `tests/unit/test_numerics.py -q -> 38 passed`
+  - current model verification:
+    - `tests/unit/test_models.py -q -> 49 passed`
+  - current oracle verification:
+    - `tests/unit/test_oracle.py -q -> 42 passed`
+  - current dtype comparison verification:
+    - `tests/unit/test_dtype_compare.py -q -> 24 passed`
+  - current dtype demo verification:
+    - `tests/unit/test_dtype_compare_demo.py -q -> 11 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 749 passed`
-  - latest directly confirmed smoke remains older:
-    - `scripts/run_smoke_test.py -> 8/8 passed`
+    - `python -m pytest -> 856 passed, 1 warning`
+  - latest directly confirmed smoke:
+    - `scripts/run_smoke_test.py -> 9/9 passed`
   - current normalized import-timing artifact:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 16D smoke-level demo coverage hardening
-  - objective: add both approved demo consumers to the fast smoke path and assert stable summary markers rather than only successful completion
+  - Phase 18B report-backed oracle demo alignment
+  - objective: make `scripts/run_ctrl_oracle_demo.py` consume `summarize_train_compare(...)` so the approved report seam is exercised by a real demo consumer
 - The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -101,7 +107,32 @@ As of 2026-03-29:
   - the first backtest consumer now exists under `src/backtest/`
   - trainer/demo stress coverage now exercises the correct trainer-facing stateful shell boundary
   - the Phase 16C bridge now combines training and deterministic CTRL-vs-oracle comparison in one bounded consumer
-  - the next assigned hardening task is to add smoke-level coverage for both demo entrypoints
+  - later phases added:
+    - smoke hardening for both demo entrypoints
+    - numerical diagnostics and dtype-comparison utilities
+    - a compact scalar report over `train_and_compare(...)`
+  - the current assigned consumer task is to align the oracle demo with the approved scalar report seam
+- Reference-gap analysis from the 2026-03-29 documentation review:
+  - Tier 1 theorem/correctness gaps still missing:
+    - parameter projection sets for actor/critic parameters (`K_{θ,n}`, `K_{1,n}`, `K_{2,n}`)
+    - explicit verification that the actor update path matches the paper's `φ₂^{-1}` increment rather than only being "close in spirit"
+    - stronger enforcement/documentation of stochastic behavior policy for training versus deterministic execution policy for reported performance
+  - Tier 2 practical online gaps still missing:
+    - TD(λ) eligibility traces
+    - one-step incremental gradient updates
+    - historical mini-batch weighting
+    - separate rebalance cadence `R` from parameter-update cadence `U`
+    - explicit leverage-limit layer
+    - named off-policy learning seam
+  - Tier 3 infrastructure status:
+    - replay buffer and synthetic data modules remain stubs
+    - experiment/config-dispatch runner is still absent
+    - plotting/logging infrastructure remains absent or stub-level
+  - Tier 4 research extensions remain design-stage only:
+    - richer synthetic environments
+    - WRDS real-data path
+    - transaction-cost realism
+    - multi-agent synthetic market
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work

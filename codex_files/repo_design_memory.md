@@ -122,3 +122,42 @@ Owner: Codex
 - Review lesson from the Phase 16B follow-up:
   - direct tests of `ctrl_outer_loop(...)` are useful but do not substitute for stateful-shell coverage when the task explicitly names `CTRLTrainerState.run_outer_loop(...)`
   - snapshot/history behavior should be treated as part of the trainer pipeline contract once the stateful shell is the requested seam
+
+### Reference-gap assessment (2026-03-29)
+
+- The repo is now strong on theorem-aligned structure and bounded workflow seams, but it is still not fully identical to the reference-algorithm requirements.
+- Current state judged against the markdown references:
+  - core theorem-aligned pieces implemented:
+    - GBM environment
+    - Zhou-Li oracle benchmark
+    - GaussianActor / QuadraticCritic structure
+    - CTRL rollout, residual, and scalar-loss plumbing
+    - stateful trainer shell
+    - deterministic evaluation stack
+    - backtest comparison, train-compare bridge, and scalar report
+  - Tier 1 correctness/theorem gaps still missing:
+    - parameter projection sets for actor/critic parameters in addition to the existing `w` bounds
+    - explicit verification that the actor precision path matches the paper's `φ₂^{-1}` update logic
+    - stronger named enforcement of stochastic behavior policy for collection versus deterministic execution policy for reported performance
+  - Tier 2 practical-online gaps still missing:
+    - TD(λ) traces
+    - one-step incremental gradient updates
+    - historical mini-batch weighting
+    - separate rebalance cadence from parameter-update cadence
+    - leverage-limit layer
+    - named off-policy seam
+  - Tier 3 infrastructure gaps remain:
+    - replay buffer
+    - synthetic data module
+    - config-dispatch experiment runner
+    - plotting and richer logging/reporting layers
+
+- Design implication:
+  - describe the repo as theorem-aligned and practically usable for controlled experiments, but not yet fully theorem-compliant with every convergence-proof requirement
+  - when future roadmap notes discuss "theorem compliance", distinguish:
+    - currently implemented structural alignment
+    - remaining Tier 1 projection/update-policy gaps
+
+- Sequencing implication:
+  - bounded workflow consumers can continue to improve around the current bridge/report/demo seams
+  - but eventual algorithm-depth work should return to the Tier 1 projection/update-policy gaps before claiming a fully paper-faithful implementation

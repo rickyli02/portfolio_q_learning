@@ -504,3 +504,316 @@ Verification re-run in `.venv`:
 
 Status:
 - Phase 17D remains open pending the narrow fix above.
+
+[Claude Code | 2026-03-29 13:31:35 EDT]
+Verification request (Phase 17D follow-up — genuine extreme regime):
+- Finding addressed: the extreme regime now uses t=0.0 so the exponent is
+  phi3*(T-t) = 90*1.0 = 90, which exceeds the float32 overflow threshold
+  (~exp(88.7)); both float32 and float64 overflow, making the delta nan
+  rather than a small identical value
+- Demo script comment updated to accurately describe the condition
+- New test test_extreme_regime_actor_variance_delta_is_non_finite proves:
+  - normal-regime actor_variance_delta is finite
+  - extreme-regime actor_variance_delta is non-finite (nan/inf from overflow)
+  - this is a genuine distinct boundary diagnostic, not a re-labelled copy
+- Files changed:
+  - scripts/run_dtype_compare_demo.py (_EXTREME_T=0.0 added, comment and label updated)
+  - tests/unit/test_dtype_compare_demo.py (strengthened: 11 tests, up from 10)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare_demo.py -q --tb=short` → 11 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare.py -q --tb=short` → 24 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_models.py -q --tb=short` → 49 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_oracle.py -q --tb=short` → 42 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-29 13:33:19 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare_demo.py -q --tb=short` -> `11 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare.py -q --tb=short` -> `24 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_models.py -q --tb=short` -> `49 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_oracle.py -q --tb=short` -> `42 passed`
+
+Direct check:
+- `.venv/bin/python3 scripts/run_dtype_compare_demo.py` now prints a genuinely distinct boundary block:
+  - normal regime: `actor_variance_delta = 0.000000e+00`
+  - extreme regime: `actor_variance_delta = nan`
+
+Assessment:
+- the second demo block is now an honest boundary case rather than a mislabeled duplicate of the normal regime
+- the strengthened demo test module now proves that the extreme block is genuinely distinct by checking finite normal output against non-finite boundary output
+
+Status:
+- Phase 17D is approved and closed.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-29 15:41:25 EDT]
+New bounded task: `Phase 18A train-compare scalar report foundation`
+
+Goal:
+- add one small typed report seam that turns the approved `train_and_compare(...)` result into a compact scalar experiment summary
+- make the existing training-plus-comparison workflow easier to inspect and reuse without reopening plotting, config wiring, or general artifact management
+
+Why this is next:
+- the repo now has:
+  - trainer state and snapshots
+  - deterministic CTRL-vs-oracle comparison
+  - a train-then-compare bridge
+  - demo/report entrypoints for the numerics thread
+- what is still missing is a single compact typed summary for the end-to-end train-and-compare workflow
+
+Scope:
+- `src/backtest/`
+- `src/backtest/__init__.py` if exports are needed
+- directly related unit tests under `tests/unit/`
+- do not modify trainer internals, eval internals, config schema, smoke wiring, or plotting
+
+Required deliverables:
+- one typed scalar report dataclass for the train-and-compare workflow, for example:
+  - post-training `w`
+  - trainer scalar history length / iteration count
+  - final trainer snapshot scalars that are already available on the approved result
+  - key comparison scalars such as mean terminal wealth delta and CTRL win rate
+- one pure helper that derives this report from the approved `CTRLTrainCompareResult`
+- preserve the existing `train_and_compare(...)` API; this phase adds a consumer/helper, not a breaking change
+
+Testing requirements:
+- prove the helper returns the expected report type
+- prove the report fields match the source `CTRLTrainCompareResult` exactly
+- prove it works on a real small `train_and_compare(...)` run rather than only fabricated objects
+- prove public exports if added
+- avoid vague tests that only check the helper runs
+
+Explicitly in scope:
+- a compact typed scalar summary over the existing train-plus-compare result
+- exact unit coverage for field mapping and live integration behavior
+
+Explicitly out of scope:
+- saving reports to disk
+- config-driven experiment runners
+- plotting/report visualization
+- changing the existing bridge semantics
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest` on the new dedicated report test module
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short`
+
+Review gate:
+- after implementation, post a concise verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-29 15:47:02 EDT]
+Verification request:
+- Task completed: Phase 18A train-compare scalar report foundation
+- Files changed:
+  - src/backtest/train_compare_report.py (new: CTRLTrainCompareReport dataclass + summarize_train_compare helper)
+  - src/backtest/__init__.py (exports CTRLTrainCompareReport and summarize_train_compare)
+  - tests/unit/test_train_compare_report.py (new: 16 tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_train_compare_report.py -q --tb=short` → 16 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` → 17 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` → 15 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-29 15:48:45 EDT]
+Review result: approved.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare_report.py -q --tb=short` -> `16 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` -> `17 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` -> `15 passed`
+
+Direct check:
+- a live small run now summarizes cleanly into the expected flat report shape, e.g.:
+  - `CTRLTrainCompareReport(post_training_w=0.9975090193748474, target_return_z=1.0, last_n_updates=4, last_terminal_wealth=1.1342052221298218, n_eval_seeds=3, ctrl_mean_terminal_wealth=1.0528610150019329, oracle_mean_terminal_wealth=1.0611611604690552, mean_terminal_wealth_delta=-0.008300145467122396, ctrl_win_rate=0.3333333333333333)`
+
+Assessment:
+- `CTRLTrainCompareReport` stays within the intended Phase 18A boundary: a pure flat scalar consumer over the existing `CTRLTrainCompareResult`
+- the helper maps the expected post-training snapshot and comparison scalars without changing bridge semantics
+- the dedicated report tests provide the right coverage strength for this phase:
+  - exact field mapping
+  - live small-run integration
+  - public export coverage
+
+Status:
+- Phase 18A is approved and closed.
+- Claude is paused pending the next bounded task.
+
+[Claude Code | 2026-03-29 16:15:53 EDT]
+Gap analysis: repo vs reference documentation
+
+Requested by: Ricky (user question — not a code task)
+
+---
+
+WHAT IS FULLY IMPLEMENTED
+
+The following are complete and tested:
+
+Core algorithm structure (Huang-Jia-Zhou 2025):
+- GBM environment with exact log-normal dynamics: src/envs/gbm_env.py
+- Oracle benchmark (Zhou-Li 2000): src/algos/oracle_mv.py
+- GaussianActor (theorem-aligned parametrization): src/models/gaussian_actor.py
+- QuadraticCritic (theorem-aligned parametrization): src/models/quadratic_critic.py
+- CTRL rollout + martingale residuals + scalar loss assembly: src/algos/ctrl.py
+- Outer-loop w update with optional bounds: src/train/w_update.py
+- Full stateful trainer shell with checkpoints, history, snapshots: src/train/ctrl_state.py
+- Deterministic evaluation stack (records → summaries → aggregates → bundles): src/eval/
+- CTRL-vs-oracle comparison: src/backtest/comparison.py
+- Train-then-compare bridge: src/backtest/train_compare.py
+- Compact scalar report: src/backtest/train_compare_report.py
+- Numerical safety diagnostics (warn_if_unstable, warn_if_ill_conditioned): src/utils/numerics.py
+- Dtype sensitivity comparison: src/utils/dtype_compare.py
+- Feature engineering + context masking: src/features/
+- Config schema: src/config/schema.py
+- Device + seed utilities: src/utils/
+
+Test suite: 856 passed (as of last full run), 9/9 smoke.
+
+---
+
+WHAT IS MISSING — BY TIER
+
+Tier 1: Core algorithm correctness gaps (HJZ 2025 theorem requirements)
+These are gaps between the current implementation and what the convergence proof requires.
+
+1. Parameter projection onto expanding sets K_{θ,n}, K_{1,n}, K_{2,n}
+   - w-projection exists (w_min/w_max bounds in w_update.py)
+   - θ/φ parameter projection is ABSENT
+   - The convergence theorem (HJZ 2025 §3-4) requires all three projection sets
+   - Without it, the repo is a practical approximation, not the theorem-compliant algorithm
+
+2. φ₂^{-1} (precision) update
+   - The paper specifies updating φ₂^{-1} not φ₂ (numerical stability + convergence)
+   - Actor currently stores log_phi2_inv and optimizes via autograd through it
+   - This is close in spirit but the gradient update path is not explicitly the
+     one-step precision increment G_{φ₂^{-1},k} from the pseudocode
+   - Needs explicit verification against Algorithm B in the pseudocode reference
+
+3. Behavior/execution policy separation in training loop
+   - Components exist: actor.sample() for behavior, actor.mean_action() for execution
+   - The training loop (ctrl_trainer.py, ctrl_outer_iter.py) does not explicitly
+     enforce or document which policy is used where
+   - The paper requires stochastic behavior policy for data collection and
+     deterministic execution policy for reported performance
+
+Tier 2: Practical online variant (HJZ 2022 + E-companion)
+These are the production-grade improvements the companion paper adds.
+
+1. TD(λ) eligibility traces (I_k, H_k with exponential decay λ^{t-s})
+   - Not implemented; currently uses full batch accumulation per outer iteration
+
+2. One-step incremental gradient updates G_{θ,k}, G_{φ₁,k}, G_{φ₂^{-1},k}
+   - Not implemented; currently runs n_updates full gradient steps per outer iter
+
+3. Historical mini-batch weighting: θ_{k+1} ← Proj(θ_k + a_n(w_prev·G_{k-1} + w_curr·G_k))
+   - Not implemented; plain single-step Adam/SGD updates
+
+4. Separate rebalance cadence R from parameter update cadence U
+   - Not implemented; currently each env step maps 1:1 to a gradient step
+
+5. Leverage constraint layer
+   - Risky-only projection exists: src/envs/gbm_env.py (apply_risky_only_projection)
+   - Leverage limit (rescale if ∑|u| > x·ℓ) is ABSENT
+
+6. Off-policy learning seam (explicit separation of data-generating vs eval policy)
+   - Not implemented as a named seam
+
+Tier 3: Infrastructure (needed for real experiments)
+- Replay buffer: src/data/replay_buffer.py is a stub
+- Synthetic data generation: src/data/synthetic.py is a stub
+- Eval file IO: src/eval/record_io.py, bundle_io.py, etc. are stubs
+- Config-dispatch runner: config schema exists, no YAML → experiment runner
+- Logging infrastructure: src/utils/logging.py stub
+- Plotting / visualization: no plotting layer
+
+Tier 4: Research extensions (future work)
+- Alternative synthetic environments: jump-diffusion, stochastic vol, time-varying params
+  (staged stress ladder identified in brainstorm; not started)
+- Real-data pipeline (WRDS): requires leakage-safe data contract, feature loader,
+  calendar train/val/test splits, survivorship-bias handling
+- Transaction cost layer: proportional/fixed fees, slippage as modular env wrapper
+- Multi-agent synthetic market: different repo tier; requires exchange simulator
+
+---
+
+SUMMARY TABLE
+
+  Oracle benchmark (Zhou-Li 2000)          COMPLETE
+  Theorem-aligned CTRL structure            COMPLETE
+  (models, losses, outer loop, eval stack)
+  Parameter projection (θ, φ sets)          MISSING — Tier 1
+  φ₂^{-1} gradient update                   PARTIAL — needs verification vs pseudocode
+  Behavior/execution separation             PARTIAL — components exist, not enforced
+  TD(λ) traces + one-step updates           MISSING — Tier 2
+  Historical mini-batch weighting           MISSING — Tier 2
+  Separate R/U cadences                     MISSING — Tier 2
+  Leverage constraint                       MISSING — Tier 2
+  Replay buffer / data layer                STUB — Tier 3
+  Eval file IO                              STUB — Tier 3
+  Config runner / dispatcher                MISSING — Tier 3
+  Plotting                                  MISSING — Tier 3
+  Richer synthetic environments             NOT STARTED — Tier 4
+  Real data (WRDS)                          NOT STARTED — Tier 4
+
+---
+
+Key references for the missing Tier 1-2 items:
+- references/portfolio_mv_ctrl_complete_pseudocode.md (Algorithm B and C)
+- references/portfolio_mv_papers_companion_implementation_notes.md
+  (projection sets §3, φ₂^{-1} update, trace formulas)
+
+[Codex | 2026-03-29 15:49:38 EDT]
+New bounded task: `Phase 18B report-backed oracle demo alignment`
+
+Goal:
+- update the existing `scripts/run_ctrl_oracle_demo.py` path to consume the approved `CTRLTrainCompareReport` helper instead of assembling its scalar summary ad hoc
+- keep the demo user-facing and stable while ensuring the new report seam is exercised by a real consumer
+
+Why this is next:
+- Phase 18A added a compact typed scalar summary for the train-and-compare workflow
+- the next clean step is to make the existing train-and-compare demo use that summary so the report seam is not test-only infrastructure
+
+Scope:
+- `scripts/run_ctrl_oracle_demo.py`
+- directly related unit tests under `tests/unit/`
+- `src/backtest/` only if a tiny export/import adjustment is genuinely needed
+- do not modify smoke wiring intentionally, config schema, plotting, trainer internals, or report serialization
+
+Required deliverables:
+- make `run_ctrl_oracle_demo.py` call `summarize_train_compare(...)`
+- use the returned `CTRLTrainCompareReport` for the compact scalar portion of the demo output
+- preserve the existing demo’s overall bounded purpose and stable success path
+- keep or improve current output markers so downstream tests remain meaningful
+
+Testing requirements:
+- prove the demo still returns success
+- prove the output now reflects the report-backed scalar fields
+- prove the demo remains compatible with existing smoke-facing expectations, or update the direct unit tests if markers legitimately change
+- avoid vague tests that only check the script runs
+
+Explicitly in scope:
+- one real consumer of `CTRLTrainCompareReport`
+- demo-output alignment with the approved report seam
+- direct unit coverage for the demo path
+
+Explicitly out of scope:
+- adding new file IO
+- changing train-and-compare semantics
+- broad smoke-test refactors unless required by a small marker adjustment
+- plotting/report visualization
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_demo_scripts.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare_report.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short`
+
+Review gate:
+- after implementation, post a concise verification request and remain paused
+
+GO

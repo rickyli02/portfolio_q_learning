@@ -48,18 +48,25 @@ Last updated: 2026-03-29
 - Phase 16D smoke-level hardening for both demo entrypoints: approved
 - Phase 17A numerical-safety diagnostics foundation: approved
 - Phase 17B oracle conditioning-warning boundary: approved
-- Phase 17C dtype-sensitivity comparison foundation: pending review
+- Phase 17C dtype-sensitivity comparison foundation: approved
+- Phase 17D dtype-comparison demo/report seam: approved
+- Phase 18A train-compare scalar report foundation: approved
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `~815 passed` (est.)
-- `tests/unit/test_numerics.py -q` has reached `29 passed`
+- `python -m pytest` has reached `856 passed, 1 warning`
+- `tests/unit/test_numerics.py -q` has reached `38 passed`
 - `tests/unit/test_models.py -q` has reached `49 passed`
-- `tests/unit/test_oracle.py -q` has reached `36 passed`
+- `tests/unit/test_oracle.py -q` has reached `42 passed`
 - `tests/unit/test_ctrl_trainer.py -q` has reached `222 passed`
+- `tests/unit/test_dtype_compare.py -q` has reached `24 passed`
+- `tests/unit/test_dtype_compare_demo.py -q` has reached `11 passed`
+- `tests/unit/test_train_compare.py -q` has reached `17 passed`
+- `tests/unit/test_train_compare_report.py -q` has reached `16 passed`
+- `tests/unit/test_backtest_comparison.py -q` has reached `15 passed`
 - `scripts/run_smoke_test.py` has reached `9/9 passed`
 - long-verification artifacts exist under `outputs/verification/`
-- .venv rebuilt on 2026-03-29 (Python 3.14, torch 2.11.0) after torch._functorch.config import failure
+- `.venv` was rebuilt again on 2026-03-29 after the interpreter binaries disappeared from `.venv/bin`; the current confirmed full run is under Python 3.14.3
 
 ## Active implementation direction
 
@@ -68,7 +75,28 @@ Last updated: 2026-03-29
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - Phase 17B pending review: warn_if_ill_conditioned helper + oracle conditioning warning before linalg.solve
+  - Phase 18B active: align `scripts/run_ctrl_oracle_demo.py` with the approved `CTRLTrainCompareReport` seam
+  - documentation now explicitly distinguishes implemented theorem-aligned structure from still-missing Tier 1/Tier 2 paper gaps
+
+## Reference-gap snapshot
+
+- Implemented and tested:
+  - theorem-aligned model/environment/loss structure
+  - stateful trainer shell
+  - evaluation/backtest/train-compare/report seams
+  - numerics and dtype diagnostics
+- Tier 1 gaps still missing:
+  - actor/critic parameter projection sets
+  - explicit verification of the `φ₂^{-1}` update path against pseudocode
+  - stronger named enforcement of behavior-policy versus execution-policy separation
+- Tier 2 gaps still missing:
+  - TD(λ) traces
+  - one-step incremental updates
+  - historical mini-batch weighting
+  - separate rebalance versus parameter-update cadences
+  - leverage-limit layer
+  - named off-policy seam
+- Tier 3/Tier 4 remain infrastructure/research roadmap items rather than current implementation state
 
 ## Stable decisions
 

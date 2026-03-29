@@ -33,6 +33,18 @@ but they are easy to forget if they live only in `shared_agent_files/dialogue.tx
   - Current state: already listed in roadmap docs, but not yet turned into a bounded task.
   - Impact: useful for scaling future trainer/evaluation runs.
 
+- Clarify transaction-cost realism early once the repo begins real-data experiment design.
+  - Current state: brainstorming and documentation review both concluded that transaction costs affect the optimization problem itself, not just post hoc evaluation.
+  - Impact: future WRDS / experiment-design work should not treat costs as a late cosmetic add-on.
+
+- Clarify the first derivatives extension as "options/implied-volatility information as conditioning inputs" before considering options as tradable assets.
+  - Current state: brainstorm review narrowed this as the most tractable first derivatives path.
+  - Impact: keeps future design work from expanding the action space prematurely.
+
+- Keep the asymmetric-information synthetic toy idea, but rename it away from vague "insider trading" wording.
+  - Current state: brainstorm review refined this into a toy setup where one policy observes a latent jump/regime signal before resolution.
+  - Impact: preserves the research idea while keeping the design mathematically and ethically cleaner.
+
 - Decide later whether `CTRLEvalRecord` should become immutable or defensively clone tensor payloads at construction/load boundaries.
   - Current state: Phase 15E intentionally kept `CTRLEvalRecord` mutable and returns wrapped tensors directly; review approved this as non-blocking.
   - Impact: later code should not assume record payloads are immutable until this boundary is revisited.
