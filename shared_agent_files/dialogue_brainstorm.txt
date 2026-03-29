@@ -23,3 +23,60 @@ Suggested entry format:
 
 Current status:
 - ready for brainstorming entries
+
+[Ricky | 2026-03-29 11:51:00 EDT]
+- Idea 1: large input data, timing, and parallelization
+  - Testing:
+    - Large amount of stocks
+    - Large time horizon or high frequency data
+    - Large amount of conditional information
+  - Modularization and parallelization of compute
+
+- Idea 2: Real world data using wrds
+  - I have wrds access and is able to obtain real market data
+  - Test model performance at different frequencies (intra-day, daily, weekly, monthly)
+  - need to be aware of lookahead bias and data leakage
+  - Model performance for different markets (stocks, bonds, commodities, etc.)
+  - Model performance under different market regimes
+  - Model performance conditioned on real-world derivatives/options data
+  - Model performance conditioned on medium/high frequency macro data
+
+- Idea 3: Alternative synthetic data
+  - Pairs trading behavior
+
+  - Jump-Diffusion
+  - Time-varying mean and volatility parameters
+  - stochastic volatility models, for example Heston
+  
+  - testing outside of theoretical guarantee: 
+    - fractional Brownian motion driven processes
+    - synthetic market data that resembles market data econophysics, for example heavy-tailed distribution of returns, etc.
+      - need to be more specific of the underlying processes
+      - GARCH models and their continuous analogue
+    - Non-markovian test_models
+
+  - testing synthetic cases of "market surprise"
+    - need more detail and specificity
+
+  - testing for cases where market may exhibit "insider trading"
+    - need more detail and specificity
+  
+  - The key is to find explanation and reasoning for model performance under these regimes
+  - Compare with the performance under real world data, reason about what the model is able and unable to capture
+
+- Idea 4: Market with synthetic data and multiple players
+  - Multiple agents using CTRL or variations trading in the same synthetic market
+  - Needs a mock trading exchange environment and wiring CTRL into trade submission logic
+  - Much more infrastructure needed
+
+- Idea 5: Data Exploration and trading strategy analysis
+  - Treating CTRL portfolio decisions as signals for returns
+  - standard statistical analysis: Information Coeefficient, alpha (after taking into account common factors), etc.
+  - behavior compared to mean reversion vs momentum factors 
+  - extension to market making?
+  - visualization
+
+- Idea 6: Simulating trading costs and market impact
+  - need more detail and specificity
+
+- Idea 7: Related to hedgin case, portfolio optimization with options and derivatives added

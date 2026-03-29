@@ -47,7 +47,8 @@ Last updated: 2026-03-29
 - Phase 16C trainer-to-backtest bridge and tiny comparison demo: approved
 - Phase 16D smoke-level hardening for both demo entrypoints: approved
 - Phase 17A numerical-safety diagnostics foundation: approved
-- Phase 17B oracle conditioning-warning boundary: pending review
+- Phase 17B oracle conditioning-warning boundary: approved
+- Phase 17C dtype-sensitivity comparison foundation: pending review
 
 ## Current verification snapshot
 
