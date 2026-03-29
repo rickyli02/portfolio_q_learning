@@ -108,3 +108,16 @@ Owner: Codex
 - Rationale:
   - Phases 15E-15K were technically sound but had no in-repo consumer yet
   - the value of saved records/record-sets/bundles is only realized once something loads them and produces comparison output or downstream analysis
+
+### Post-Phase-16 consumer sequencing
+
+- Phase 16A completed the first real eval-stack consumer under `src/backtest/`:
+  - deterministic CTRL-vs-oracle scalar comparison
+  - approved tests now cover the comparison seam and exact oracle/CTRL scalar-bundle behavior
+- The next quality bottleneck initially shifted from "missing consumer" to "testing the correct trainer-facing surface".
+- Current sequencing decision:
+  - Phase 16B resolved that trainer-facing stress-coverage gap around the approved stateful shell
+  - the next bounded consumer should connect `CTRLTrainerState` output to deterministic CTRL-vs-oracle comparison in one small post-run flow
+- Review lesson from the Phase 16B follow-up:
+  - direct tests of `ctrl_outer_loop(...)` are useful but do not substitute for stateful-shell coverage when the task explicitly names `CTRLTrainerState.run_outer_loop(...)`
+  - snapshot/history behavior should be treated as part of the trainer pipeline contract once the stateful shell is the requested seam

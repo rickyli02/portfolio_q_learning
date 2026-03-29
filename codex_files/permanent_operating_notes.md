@@ -37,6 +37,7 @@ Owner: Codex
 - Require Claude to post a stop-event entry immediately when a stop condition is triggered.
 - If a task adds a new dedicated unit-test file, require Claude's verification request to list that file's direct pytest command explicitly, not just the broader `tests/unit` command.
 - If the repo has already completed several consecutive infrastructure-only phases in one layer, require the next task-assignment to justify why another extension is needed instead of moving to a consumer workflow.
+- If a task defines the target workflow in terms of a specific public or stateful API boundary, require the tests to drive that boundary directly rather than substituting a lower-level helper.
 
 ### Generic Stop Conditions For Claude
 
@@ -68,3 +69,4 @@ Owner: Codex
 - Treat cloud-synced virtual environments as a reproducibility and performance risk; keep `.venv/` local, rebuildable, and out of normal iCloud syncing/indexing paths.
 - Avoid overextending infrastructure layers without a consumer.
 - After a foundation layer is clearly complete enough to use, bias subsequent tasking toward consuming it in a real workflow before adding more wrappers or persistence helpers around the same layer.
+- When reviewing consumer-workflow tasks, check that the claimed workflow surface is the one actually under test; passing tests on a lower-level helper are not enough if the task named a higher-level shell.

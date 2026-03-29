@@ -20,7 +20,8 @@ from src.config.schema import AssetConfig, EnvConfig
 from src.envs.gbm_env import GBMPortfolioEnv
 from src.models.gaussian_actor import GaussianActor
 from src.models.quadratic_critic import QuadraticCritic
-from src.train.ctrl_outer_loop import CTRLOuterLoopResult, ctrl_outer_loop
+from src.train.ctrl_outer_loop import CTRLOuterLoopResult
+from src.train.ctrl_state import CTRLTrainerState, CTRLTrainerSnapshot
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +114,7 @@ def _run_pipeline(
     z: float = 1.0,
     entropy_temp: float = 0.1,
     w_step_size: float = 0.01,
-) -> tuple[CTRLOuterLoopResult, GaussianActor, QuadraticCritic]:
+) -> tuple[CTRLOuterLoopResult, GaussianActor, QuadraticCritic, CTRLTrainerState]:
     cfg = EnvConfig(
         horizon=1.0,
         n_steps=n_steps,
@@ -128,27 +129,30 @@ def _run_pipeline(
     actor_opt = torch.optim.SGD(actor.parameters(), lr=1e-3)
     critic_opt = torch.optim.SGD(critic.parameters(), lr=1e-3)
 
-    result = ctrl_outer_loop(
+    trainer = CTRLTrainerState(
         actor=actor,
         critic=critic,
         env=env,
         actor_optimizer=actor_opt,
         critic_optimizer=critic_opt,
-        w_init=w_init,
+        current_w=w_init,
         target_return_z=z,
         w_step_size=w_step_size,
+    )
+    result = trainer.run_outer_loop(
         n_outer_iters=n_outer_iters,
         n_updates=n_updates,
         entropy_temp=entropy_temp,
         base_seed=base_seed,
     )
-    return result, actor, critic
+    return result, actor, critic, trainer
 
 
 def _assert_pipeline_invariants(
     result: CTRLOuterLoopResult,
     actor: GaussianActor,
     critic: QuadraticCritic,
+    trainer: CTRLTrainerState,
     n_outer_iters: int,
     n_updates: int,
     label: str = "",
@@ -179,6 +183,22 @@ def _assert_pipeline_invariants(
     for i, p in enumerate(critic.parameters()):
         assert torch.isfinite(p).all(), f"{pfx}critic param[{i}] has NaN/inf"
 
+    # Trainer stateful shell — snapshot and history checks
+    snap = trainer.snapshot()
+    assert isinstance(snap, CTRLTrainerSnapshot), f"{pfx}snapshot wrong type"
+    assert math.isfinite(snap.current_w), f"{pfx}snapshot.current_w not finite"
+    assert snap.current_w == result.w_final, f"{pfx}snapshot.current_w != result.w_final"
+    assert snap.last_terminal_wealth is not None, f"{pfx}snapshot.last_terminal_wealth is None"
+    assert math.isfinite(snap.last_terminal_wealth), f"{pfx}snapshot.last_terminal_wealth not finite"
+    assert snap.last_n_updates == n_outer_iters * n_updates, (
+        f"{pfx}snapshot.last_n_updates {snap.last_n_updates} != {n_outer_iters * n_updates}"
+    )
+    # run_outer_loop appends exactly one snapshot to history per call
+    assert len(trainer.history) == 1, f"{pfx}trainer.history length != 1"
+    hist_snap = trainer.history[0]
+    assert hist_snap.current_w == snap.current_w, f"{pfx}history[0].current_w mismatch"
+    assert hist_snap.last_n_updates == snap.last_n_updates, f"{pfx}history[0].last_n_updates mismatch"
+
 
 # ===========================================================================
 # Case A — baseline single-asset
@@ -187,10 +207,10 @@ def _assert_pipeline_invariants(
 
 def test_stress_case_a_baseline_single_asset():
     """Case A: mu=0.08, sigma=0.20, initial_wealth=1.0 — standard baseline."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=1, mu=[0.08], sigma=[[0.20]], initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="A")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="A")
 
 
 # ===========================================================================
@@ -200,10 +220,10 @@ def test_stress_case_a_baseline_single_asset():
 
 def test_stress_case_b_small_initial_wealth():
     """Case B: initial_wealth=0.05 — near-zero wealth regime produces finite outputs."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=1, mu=[0.08], sigma=[[0.20]], initial_wealth=0.05
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="B")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="B")
     # Terminal wealth should remain positive and finite
     final_step = result.final_iter.run_result.final_step
     assert final_step.terminal_wealth > 0, "Case B: terminal_wealth should be positive"
@@ -216,10 +236,10 @@ def test_stress_case_b_small_initial_wealth():
 
 def test_stress_case_c_high_volatility():
     """Case C: mu=0.005, sigma=0.80 — very high vol relative to drift."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=1, mu=[0.005], sigma=[[0.80]], initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="C")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="C")
 
 
 # ===========================================================================
@@ -229,10 +249,10 @@ def test_stress_case_c_high_volatility():
 
 def test_stress_case_d_adverse_drift():
     """Case D: mu=-0.20, sigma=0.60 — negative drift with high volatility."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=1, mu=[-0.20], sigma=[[0.60]], initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="D")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="D")
 
 
 # ===========================================================================
@@ -242,10 +262,10 @@ def test_stress_case_d_adverse_drift():
 
 def test_stress_case_e_correlated_2_asset():
     """Case E: n_risky=2, correlated sigma — positive off-diagonal covariance."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=2, mu=[0.03, 0.04], sigma=_SIGMA_E, initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="E")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="E")
 
 
 # ===========================================================================
@@ -255,10 +275,10 @@ def test_stress_case_e_correlated_2_asset():
 
 def test_stress_case_f_strongly_positive_corr_5_assets():
     """Case F: n_risky=5, dominant common factor — pairwise corr ≈ 0.97."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=5, mu=[0.03] * 5, sigma=_SIGMA_F, initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="F")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="F")
 
 
 # ===========================================================================
@@ -268,10 +288,10 @@ def test_stress_case_f_strongly_positive_corr_5_assets():
 
 def test_stress_case_g_negative_corr_5_assets():
     """Case G: n_risky=5, two-group negative cross-correlation structure."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=5, mu=[0.03, 0.03, 0.04, 0.04, 0.035], sigma=_SIGMA_G, initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="G")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="G")
 
 
 # ===========================================================================
@@ -281,10 +301,10 @@ def test_stress_case_g_negative_corr_5_assets():
 
 def test_stress_case_h_two_cluster_10_assets():
     """Case H: n_risky=10, two 5-asset clusters with weak negative between-cluster cov."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=10, mu=[0.03] * 10, sigma=_SIGMA_H, initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="H")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="H")
 
 
 # ===========================================================================
@@ -294,10 +314,10 @@ def test_stress_case_h_two_cluster_10_assets():
 
 def test_stress_case_i_near_deterministic():
     """Case I: n_risky=2, sigma ≈ 1e-3 — near-deterministic returns."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=2, mu=[0.05, 0.04], sigma=_SIGMA_I, initial_wealth=1.0
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=2, n_updates=2, label="I")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=2, n_updates=2, label="I")
 
 
 # ===========================================================================
@@ -307,11 +327,11 @@ def test_stress_case_i_near_deterministic():
 
 def test_stress_small_wealth_terminal_wealth_is_positive_and_finite():
     """Very small initial wealth stays positive and finite throughout pipeline."""
-    result, actor, critic = _run_pipeline(
+    result, actor, critic, trainer = _run_pipeline(
         n_risky=1, mu=[0.08], sigma=[[0.20]], initial_wealth=0.02,
         n_outer_iters=3, n_updates=2,
     )
-    _assert_pipeline_invariants(result, actor, critic, n_outer_iters=3, n_updates=2, label="small_wealth")
+    _assert_pipeline_invariants(result, actor, critic, trainer, n_outer_iters=3, n_updates=2, label="small_wealth")
     for it in result.iters:
         final_step = it.run_result.final_step
         assert final_step.terminal_wealth > 0, "terminal_wealth must remain positive"
@@ -329,8 +349,8 @@ def test_stress_determinism_repeated_run_identical_scalars():
         n_risky=2, mu=[0.03, 0.04], sigma=_SIGMA_E, initial_wealth=1.0,
         n_outer_iters=3, n_updates=3, base_seed=99,
     )
-    result_a, _, _ = _run_pipeline(**kwargs)
-    result_b, _, _ = _run_pipeline(**kwargs)
+    result_a, _, _, _ = _run_pipeline(**kwargs)
+    result_b, _, _, _ = _run_pipeline(**kwargs)
 
     # w_final must be identical
     assert result_a.w_final == result_b.w_final, "w_final differs between runs"
@@ -357,7 +377,7 @@ def test_stress_determinism_repeated_run_identical_scalars():
 def test_stress_history_length_exact_for_longer_run():
     """n_outer_iters=5, n_updates=3 produces exactly the right history lengths."""
     n_outer, n_up = 5, 3
-    result, actor, critic = _run_pipeline(
+    result, _, _, trainer = _run_pipeline(
         n_risky=1, mu=[0.08], sigma=[[0.20]], initial_wealth=1.0,
         n_outer_iters=n_outer, n_updates=n_up,
     )
@@ -366,3 +386,6 @@ def test_stress_history_length_exact_for_longer_run():
     for ji, it in enumerate(result.iters):
         assert it.run_result.n_updates == n_up, f"n_updates mismatch at iter {ji}"
         assert len(it.run_result.steps) == n_up, f"steps length mismatch at iter {ji}"
+    # Trainer history: one entry per run_outer_loop call
+    assert len(trainer.history) == 1
+    assert trainer.history[0].last_n_updates == n_outer * n_up

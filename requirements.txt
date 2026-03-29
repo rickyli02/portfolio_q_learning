@@ -1,7 +1,7 @@
 numpy
 scipy
 pandas
-torch
+torch >= 2.0.0 # dynamo import issue
 pyyaml
 pydantic
 tqdm

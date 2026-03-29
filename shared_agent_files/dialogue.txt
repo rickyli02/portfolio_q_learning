@@ -852,3 +852,547 @@ Verification request:
   - Near-deterministic Case I (sigma ≈ 1e-3) passes without any special handling — GBMPortfolioEnv and the actor/critic are numerically stable in this regime.
   - 10-asset Case H (two-cluster _SIGMA_H, _make_sigma_h()) passes cleanly. PD structure verified by construction (a=0.25, x=-0.05, e=0.08).
 - Requesting review from: Codex
+
+[Codex | 2026-03-28 16:15:28 EDT]
+Review result: not approved yet
+
+Blocking finding:
+1. `tests/unit/test_trainer_stress.py:102` drives the lower-level `ctrl_outer_loop(...)` helper directly, but Phase 16B explicitly defined the main pipeline as including `CTRLTrainerState.run_outer_loop(...)` ([dialogue.txt](/Users/ricky/Desktop/Columbia%20Academics/Project/portfolio_q_learning/portfolio_q_learning/shared_agent_files/dialogue.txt#L716)). Because of that, the new module does not actually stress the requested stateful trainer shell, and the "snapshot scalar fields" / trainer-history part of the task is not exercised. The current assertions at `tests/unit/test_trainer_stress.py:148` only validate fields on `CTRLOuterLoopResult`, not `CTRLTrainerState.snapshot()` or `CTRLTrainerState.history`.
+
+Assessment:
+- The case matrix itself is good and directionally useful.
+- The issue is target surface selection: the tests cover the functional outer-loop helper, not the requested trainer/demo pipeline boundary.
+
+Tiny follow-up for Claude:
+- Refit the stress runner around `CTRLTrainerState(...)` plus `trainer.run_outer_loop(...)` instead of calling `ctrl_outer_loop(...)` directly.
+- Update the assertions so at least one stress case checks `trainer.snapshot()` scalar fields and `trainer.history` length exactly, in addition to the existing finite-output and determinism checks.
+- Keep the case matrix and runtime profile otherwise as-is.
+
+Verification re-run in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_trainer_stress.py -q --tb=short` -> `12 passed in 4.08s`
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `222 passed in 6.19s`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short` -> `749 passed in 7.86s`
+
+[Codex | 2026-03-28 16:44:55 EDT]
+Recommendation on avoiding future Python-environment issues:
+
+The current problem looks less like a repo logic failure and more like verification-process buildup: repeated overlapping `pytest` / Python import runs accumulated and later imports started hanging. To reduce the chance of this happening again, I recommend the following operating rules:
+
+1. Run verification commands sequentially, not in parallel, once the suite involves `torch` imports or multi-test module runs.
+   - Good default order:
+     - new dedicated test module
+     - closest neighboring test module
+     - broader `tests/unit`
+   - Avoid launching multiple `.venv/bin/python3 -m pytest ...` commands at the same time for the same repo.
+
+2. Treat a "hung" pytest run as a process-state issue first, not immediately as a code failure.
+   - If a run does not produce output in a reasonable time window, stop and check for lingering Python / pytest processes before retrying.
+   - Do not stack retries on top of already-running retries.
+
+3. Add a simple cleanup step before re-verification after any interrupted run.
+   - Example policy:
+     - if Claude had to interrupt a test run, clear stale repo-local `pytest` / Python processes before starting the next one
+     - then rerun only the smallest relevant command first
+
+4. Prefer import sanity checks when pytest behavior becomes suspicious.
+   - If `pytest` appears stuck, test whether:
+     - `import torch`
+     - `import src.train`
+     - `import tests.unit.test_trainer_stress`
+     return promptly in `.venv`
+   - If plain imports are also hanging, that is strong evidence of environment/process trouble rather than a specific test assertion failure.
+
+5. Keep `.venv` local-only and avoid background sync/index churn.
+   - We already learned this earlier with the iCloud-backed `.venv` slowdown.
+   - The same general principle applies here: keep the environment boring, local, and rebuildable.
+
+6. For Claude specifically, tighten the verification protocol:
+   - run one command at a time
+   - wait for completion before starting the next
+   - if a command is suspected hung, record that fact in dialogue instead of launching several more copies
+   - if needed, ask for or perform stale-process cleanup before retrying
+
+7. Operational fallback:
+   - if imports themselves start hanging, the cleanest next step is often:
+     - terminate stale repo-local Python processes
+     - start a fresh shell / worker
+     - rerun the smallest test command first
+
+My recommendation is to treat this as a standing verification rule going forward:
+- no parallel pytest runs for this repo once `torch`-heavy modules are involved
+- always clear stale Python/pytest processes after an interrupted verification attempt
+- escalate "imports hang" as an environment issue, not a code-review finding
+
+[Claude Code | 2026-03-28 17:03:07 EDT]
+Stop event:
+- Active task: Phase 16B — addressing Codex follow-up (refitting stress runner around CTRLTrainerState)
+- Triggered condition: required verification in .venv fails
+- Reason:
+  The test refactor itself is correct: _run_pipeline now uses CTRLTrainerState + trainer.run_outer_loop(),
+  _assert_pipeline_invariants now checks trainer.snapshot() and trainer.history, and all 12 call sites
+  are updated. The file passes py_compile (syntax OK).
+
+  However, tests cannot be verified because torch.optim.SGD() fails to instantiate in the current
+  environment with:
+    OSError: could not get source code
+
+  Full call chain (confirmed with direct Python script):
+    torch.optim.SGD.__init__
+    → torch.optim.optimizer.Optimizer.__init__ (line 408)
+    → torch._compile.py:47: import torch._dynamo  [lazy first-time import]
+    → torch._dynamo.__init__ → … → torch._dynamo.utils
+    → torch._functorch.config (module-level): install_config_module(sys.modules[__name__])
+    → get_assignments_with_compile_ignored_comments(module)
+    → inspect.getsource(module) → OSError: could not get source code
+
+  This is a torch installation issue: torch._functorch.config calls inspect.getsource() on itself
+  at module-level during the first import in a process. This succeeds when the module was already
+  cached in __pycache__ (the previous run used cached bytecode, so this path was never hit). After
+  clearing __pycache__ (done during this debugging session), fresh imports now trigger the bug.
+
+  torch._functorch.config.py EXISTS (19,044 bytes) but inspect.getsource() still fails — the root
+  cause is unknown without further environment investigation (possible iCloud eviction, malformed
+  __file__ in the module spec, or a torch wheel packaging issue with this Python version).
+
+  The stress tests (and test_ctrl_trainer.py) were passing before because torch._dynamo/__functorch
+  was loaded from __pycache__ and the module-level inspect.getsource() call was never re-executed.
+  That cache is now invalidated.
+
+- Files touched so far: tests/unit/test_trainer_stress.py (refactor complete, syntax correct)
+- Requested next input:
+  1. Can the user or Codex run `.venv/bin/python3 -c "import torch._functorch.config; print('ok')"` 
+     and report whether it succeeds? This isolates whether the issue is environment-wide or test-specific.
+  2. If torch._functorch.config can be imported cleanly (returns "ok"), the __pycache__ for the 
+     venv may need to be rebuilt: `.venv/bin/python3 -m compileall .venv/lib/python3.12/site-packages/torch`
+  3. If torch._functorch.config cannot be imported, the torch installation is broken and the .venv 
+     needs to be rebuilt or torch needs to be reinstalled.
+  4. Alternatively, Codex may know a bypass (e.g., setting TORCHDYNAMO_DISABLE=1 env var before
+     pytest runs) that would prevent the lazy torch._dynamo import from firing.
+
+[Codex | 2026-03-28 17:16:31 EDT]
+Verification of Claude's assessment:
+
+I checked the failure directly in a fresh process.
+
+Confirmed:
+- `.venv/bin/python3 -c "import torch._functorch.config; print('functorch ok')"` fails with:
+  - `OSError: could not get source code`
+- `.venv/bin/python3 -c "import torch; import torch.nn as nn; ...; torch.optim.SGD(...)"` also fails on the same path:
+  - `torch.optim.optimizer.Optimizer.__init__`
+  - `torch._compile.py`
+  - `torch._dynamo`
+  - `torch._functorch.config`
+  - `inspect.getsource(...)`
+  - `OSError: could not get source code`
+
+So the core diagnosis is correct:
+- this is not a repo-code failure in `tests/unit/test_trainer_stress.py`
+- this is an environment-wide Torch import/inspection failure that blocks optimizer construction and therefore blocks the trainer tests
+
+Small correction to the causal story:
+- I do not think the strongest verified explanation is "the tests only used to pass because of `__pycache__` and clearing it invalidated the path"
+- what is directly verified is simpler:
+  - fresh import of `torch._functorch.config` currently fails in this `.venv`
+  - fresh `torch.optim.SGD(...)` currently fails in this `.venv`
+  - therefore the Torch install / source-lookup state is currently broken enough to block verification
+- the `__pycache__` theory is plausible, but I would treat it as a hypothesis, not as the confirmed root cause
+
+I also spot-checked likely bypasses:
+- `TORCHDYNAMO_DISABLE=1` did not clearly bypass the failure path
+- `TORCH_COMPILE_DISABLE=1` did not clearly bypass the failure path
+- `TORCH_DISABLE_DYNAMO=1` also did not show an immediate successful optimizer construction in my quick check
+
+Most practical fix options, in order:
+
+1. Preferred clean fix:
+- rebuild the `.venv` and reinstall dependencies, especially Torch
+- then verify first with:
+  - `.venv/bin/python3 -c "import torch._functorch.config; print('ok')"`
+  - `.venv/bin/python3 -c "import torch; import torch.nn as nn; p = nn.Parameter(torch.tensor(1.0)); torch.optim.SGD([p], lr=1e-3); print('sgd ok')"`
+- only after those pass should Claude rerun pytest
+
+2. Lower-cost attempt before a full rebuild:
+- reinstall Torch in-place in the current `.venv`
+- then rerun the two one-line verification commands above
+
+3. If rebuild/reinstall still reproduces on Python 3.12:
+- consider recreating the `.venv` on a Torch/Python combination known to behave cleanly for this repo, potentially Python 3.11 if needed
+
+Recommended next verification order after environment repair:
+- direct `torch._functorch.config` import
+- direct `torch.optim.SGD(...)` construction
+- `tests/unit/test_trainer_stress.py`
+- `tests/unit/test_ctrl_trainer.py`
+- `tests/unit`
+
+User input requested:
+- Which recovery path should we treat as the preferred next step?
+  1. in-place Torch reinstall in the current `.venv`
+  2. full `.venv` rebuild and reinstall
+  3. full `.venv` rebuild on a different Python minor version if Torch-on-3.12 keeps failing
+
+My recommendation is `2` unless there is a strong reason to preserve the current `.venv`.
+
+[Ricky | 2026-03-29 04:18:00 EDT]
+- Output on local terminal:
+  (.venv) (base) ricky@Richards-MacBook-Pro-3730 portfolio_q_learning % deactivate 2>/dev/null || true
+rm -rf .venv
+python3 -m venv .venv
+touch .venv/.noindex
+. .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+
+Requirement already satisfied: pip in ./.venv/lib/python3.14/site-packages (26.0)
+Collecting pip
+  Using cached pip-26.0.1-py3-none-any.whl.metadata (4.7 kB)
+Collecting setuptools
+  Using cached setuptools-82.0.1-py3-none-any.whl.metadata (6.5 kB)
+Collecting wheel
+  Using cached wheel-0.46.3-py3-none-any.whl.metadata (2.4 kB)
+Collecting packaging>=24.0 (from wheel)
+  Using cached packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+Using cached pip-26.0.1-py3-none-any.whl (1.8 MB)
+Using cached setuptools-82.0.1-py3-none-any.whl (1.0 MB)
+Using cached wheel-0.46.3-py3-none-any.whl (30 kB)
+Using cached packaging-26.0-py3-none-any.whl (74 kB)
+Installing collected packages: setuptools, pip, packaging, wheel
+  Attempting uninstall: pip
+    Found existing installation: pip 26.0
+    Uninstalling pip-26.0:
+      Successfully uninstalled pip-26.0
+Successfully installed packaging-26.0 pip-26.0.1 setuptools-82.0.1 wheel-0.46.3
+Collecting numpy (from -r requirements.txt (line 1))
+  Using cached numpy-2.4.3-cp314-cp314-macosx_14_0_arm64.whl.metadata (6.6 kB)
+Collecting scipy (from -r requirements.txt (line 2))
+  Using cached scipy-1.17.1-cp314-cp314-macosx_14_0_arm64.whl.metadata (62 kB)
+Collecting pandas (from -r requirements.txt (line 3))
+  Using cached pandas-3.0.1-cp314-cp314-macosx_11_0_arm64.whl.metadata (79 kB)
+Collecting torch>=2.0.0 (from -r requirements.txt (line 4))
+  Downloading torch-2.11.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (29 kB)
+Collecting pyyaml (from -r requirements.txt (line 5))
+  Using cached pyyaml-6.0.3-cp314-cp314-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting pydantic (from -r requirements.txt (line 6))
+  Using cached pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+Collecting tqdm (from -r requirements.txt (line 7))
+  Using cached tqdm-4.67.3-py3-none-any.whl.metadata (57 kB)
+Collecting matplotlib (from -r requirements.txt (line 8))
+  Using cached matplotlib-3.10.8-cp314-cp314-macosx_11_0_arm64.whl.metadata (52 kB)
+Collecting pytest (from -r requirements.txt (line 9))
+  Using cached pytest-9.0.2-py3-none-any.whl.metadata (7.6 kB)
+Collecting python-dateutil>=2.8.2 (from pandas->-r requirements.txt (line 3))
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting filelock (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached filelock-3.25.2-py3-none-any.whl.metadata (2.0 kB)
+Collecting typing-extensions>=4.10.0 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting setuptools<82 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached setuptools-81.0.0-py3-none-any.whl.metadata (6.6 kB)
+Collecting sympy>=1.13.3 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached sympy-1.14.0-py3-none-any.whl.metadata (12 kB)
+Collecting networkx>=2.5.1 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached networkx-3.6.1-py3-none-any.whl.metadata (6.8 kB)
+Collecting jinja2 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting fsspec>=0.8.5 (from torch>=2.0.0->-r requirements.txt (line 4))
+  Downloading fsspec-2026.3.0-py3-none-any.whl.metadata (10 kB)
+Collecting annotated-types>=0.6.0 (from pydantic->-r requirements.txt (line 6))
+  Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.41.5 (from pydantic->-r requirements.txt (line 6))
+  Downloading pydantic_core-2.41.5-cp314-cp314-macosx_11_0_arm64.whl.metadata (7.3 kB)
+Collecting typing-inspection>=0.4.2 (from pydantic->-r requirements.txt (line 6))
+  Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting contourpy>=1.0.1 (from matplotlib->-r requirements.txt (line 8))
+  Using cached contourpy-1.3.3-cp314-cp314-macosx_11_0_arm64.whl.metadata (5.5 kB)
+Collecting cycler>=0.10 (from matplotlib->-r requirements.txt (line 8))
+  Using cached cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+Collecting fonttools>=4.22.0 (from matplotlib->-r requirements.txt (line 8))
+  Using cached fonttools-4.62.1-cp314-cp314-macosx_10_15_universal2.whl.metadata (117 kB)
+Collecting kiwisolver>=1.3.1 (from matplotlib->-r requirements.txt (line 8))
+  Using cached kiwisolver-1.5.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (5.1 kB)
+Requirement already satisfied: packaging>=20.0 in ./.venv/lib/python3.14/site-packages (from matplotlib->-r requirements.txt (line 8)) (26.0)
+Collecting pillow>=8 (from matplotlib->-r requirements.txt (line 8))
+  Using cached pillow-12.1.1-cp314-cp314-macosx_11_0_arm64.whl.metadata (8.8 kB)
+Collecting pyparsing>=3 (from matplotlib->-r requirements.txt (line 8))
+  Using cached pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+Collecting iniconfig>=1.0.1 (from pytest->-r requirements.txt (line 9))
+  Using cached iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest->-r requirements.txt (line 9))
+  Using cached pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting pygments>=2.7.2 (from pytest->-r requirements.txt (line 9))
+  Using cached pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas->-r requirements.txt (line 3))
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13.3->torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached mpmath-1.3.0-py3-none-any.whl.metadata (8.6 kB)
+Collecting MarkupSafe>=2.0 (from jinja2->torch>=2.0.0->-r requirements.txt (line 4))
+  Using cached markupsafe-3.0.3-cp314-cp314-macosx_11_0_arm64.whl.metadata (2.7 kB)
+Using cached numpy-2.4.3-cp314-cp314-macosx_14_0_arm64.whl (5.2 MB)
+Using cached scipy-1.17.1-cp314-cp314-macosx_14_0_arm64.whl (20.3 MB)
+Using cached pandas-3.0.1-cp314-cp314-macosx_11_0_arm64.whl (9.9 MB)
+Downloading torch-2.11.0-cp314-cp314-macosx_11_0_arm64.whl (80.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 80.6/80.6 MB 9.8 MB/s  0:00:08
+Using cached setuptools-81.0.0-py3-none-any.whl (1.1 MB)
+Using cached pyyaml-6.0.3-cp314-cp314-macosx_11_0_arm64.whl (173 kB)
+Using cached pydantic-2.12.5-py3-none-any.whl (463 kB)
+Downloading pydantic_core-2.41.5-cp314-cp314-macosx_11_0_arm64.whl (1.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 4.4 MB/s  0:00:00
+Using cached tqdm-4.67.3-py3-none-any.whl (78 kB)
+Using cached matplotlib-3.10.8-cp314-cp314-macosx_11_0_arm64.whl (8.2 MB)
+Using cached pytest-9.0.2-py3-none-any.whl (374 kB)
+Using cached pluggy-1.6.0-py3-none-any.whl (20 kB)
+Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Using cached contourpy-1.3.3-cp314-cp314-macosx_11_0_arm64.whl (273 kB)
+Using cached cycler-0.12.1-py3-none-any.whl (8.3 kB)
+Using cached fonttools-4.62.1-cp314-cp314-macosx_10_15_universal2.whl (2.9 MB)
+Downloading fsspec-2026.3.0-py3-none-any.whl (202 kB)
+Using cached iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Using cached kiwisolver-1.5.0-cp314-cp314-macosx_11_0_arm64.whl (64 kB)
+Using cached networkx-3.6.1-py3-none-any.whl (2.1 MB)
+Using cached pillow-12.1.1-cp314-cp314-macosx_11_0_arm64.whl (4.7 MB)
+Using cached pygments-2.19.2-py3-none-any.whl (1.2 MB)
+Using cached pyparsing-3.3.2-py3-none-any.whl (122 kB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Using cached sympy-1.14.0-py3-none-any.whl (6.3 MB)
+Using cached mpmath-1.3.0-py3-none-any.whl (536 kB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Using cached filelock-3.25.2-py3-none-any.whl (26 kB)
+Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+Using cached markupsafe-3.0.3-cp314-cp314-macosx_11_0_arm64.whl (12 kB)
+Installing collected packages: mpmath, typing-extensions, tqdm, sympy, six, setuptools, pyyaml, pyparsing, pygments, pluggy, pillow, numpy, networkx, MarkupSafe, kiwisolver, iniconfig, fsspec, fonttools, filelock, cycler, annotated-types, typing-inspection, scipy, python-dateutil, pytest, pydantic-core, jinja2, contourpy, torch, pydantic, pandas, matplotlib
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 82.0.1
+    Uninstalling setuptools-82.0.1:
+      Successfully uninstalled setuptools-82.0.1
+Successfully installed MarkupSafe-3.0.3 annotated-types-0.7.0 contourpy-1.3.3 cycler-0.12.1 filelock-3.25.2 fonttools-4.62.1 fsspec-2026.3.0 iniconfig-2.3.0 jinja2-3.1.6 kiwisolver-1.5.0 matplotlib-3.10.8 mpmath-1.3.0 networkx-3.6.1 numpy-2.4.3 pandas-3.0.1 pillow-12.1.1 pluggy-1.6.0 pydantic-2.12.5 pydantic-core-2.41.5 pygments-2.19.2 pyparsing-3.3.2 pytest-9.0.2 python-dateutil-2.9.0.post0 pyyaml-6.0.3 scipy-1.17.1 setuptools-81.0.0 six-1.17.0 sympy-1.14.0 torch-2.11.0 tqdm-4.67.3 typing-extensions-4.15.0 typing-inspection-0.4.2
+(.venv) (base) ricky@Richards-MacBook-Pro-3730 portfolio_q_learning % python -c "import torch._functorch.config; print('functorch ok')"
+python -c "import torch, torch.nn as nn; p = nn.Parameter(torch.tensor(1.0)); torch.optim.SGD([p], lr=1e-3); print('sgd ok')"
+
+functorch ok
+sgd ok
+(.venv) (base) ricky@Richards-MacBook-Pro-3730 portfolio_q_learning % python -m pytest tests/unit/test_trainer_stress.py -q --tb=short
+python -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short
+python -m pytest tests/unit -q --tb=short
+
+............                                                              [100%]
+12 passed in 8.15s
+......................................................................... [ 32%]
+......................................................................... [ 65%]
+......................................................................... [ 98%]
+...                                                                       [100%]
+222 passed in 10.38s
+......................................................................... [  9%]
+......................................................................... [ 19%]
+......................................................................... [ 29%]
+......................................................................... [ 38%]
+......................................................................... [ 48%]
+......................................................................... [ 58%]
+......................................................................... [ 68%]
+......................................................................... [ 77%]
+......................................................................... [ 87%]
+......................................................................... [ 97%]
+...................                                                       [100%]
+749 passed in 14.95s
+(.venv) (base) ricky@Richards-MacBook-Pro-3730 portfolio_q_learning % 
+
+[Codex | 2026-03-29 04:26:22 EDT]
+Review result after environment rebuild: approved
+
+Assessment:
+- The full `.venv` rebuild fixed the Torch import/optimizer failure.
+- The previously blocking Phase 16B issue is now resolved on both fronts:
+  - `tests/unit/test_trainer_stress.py` has been refit around `CTRLTrainerState.run_outer_loop(...)`
+  - `trainer.snapshot()` / `trainer.history` are now explicitly covered
+- The pasted local verification output is sufficient to clear the stop event:
+  - `python -c "import torch._functorch.config; print('functorch ok')"` -> `functorch ok`
+  - `python -c "import torch ... torch.optim.SGD(...)"` -> `sgd ok`
+  - `python -m pytest tests/unit/test_trainer_stress.py -q --tb=short` -> `12 passed in 8.15s`
+  - `python -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` -> `222 passed in 10.38s`
+  - `python -m pytest tests/unit -q --tb=short` -> `749 passed in 14.95s`
+
+Residual note:
+- The rebuilt `.venv` is now on Python 3.14 (`cp314` wheels in the pasted install log). That is compatible with the repo's current `pyproject.toml` (`>=3.11`) and the pasted tests passed under it, so this is not a blocking issue.
+- However, if cross-machine reproducibility starts drifting, it may be worth pinning a preferred Python minor version explicitly rather than relying on ">=3.11".
+
+Status:
+- Phase 16B is approved and closed.
+- Current directly observed unit-test baseline is `749 passed`.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-29 04:35:40 EDT]
+New bounded task: `Phase 16C trainer-to-backtest bridge and tiny comparison demo`
+
+Goal:
+- connect the approved stateful trainer shell to the approved deterministic CTRL-vs-oracle comparison seam
+- let the repo run one tiny end-to-end workflow that:
+  - trains CTRL for a small fixed outer-loop schedule
+  - evaluates the trained policy against the oracle on an explicit seed set
+  - exposes a concise scalar result suitable for a small script/demo consumer
+
+Why this is next:
+- the repo now has the necessary pieces:
+  - stateful training via `CTRLTrainerState`
+  - deterministic evaluation and scalar derivation via `src/eval/`
+  - deterministic CTRL-vs-oracle comparison via `src/backtest/`
+- what is still missing is the smallest real consumer that spans training and comparison
+- this advances the workflow without opening config wiring, reporting, or experiment-management policy
+
+Scope:
+- `src/backtest/`
+- `src/backtest/__init__.py`
+- one new script under `scripts/`
+- directly related unit tests under `tests/unit/`
+- tiny import reuse from `src/train/`, `src/envs/`, `src/models/`, `src/algos/oracle_mv.py`, and `src/config/schema.py` is allowed
+- do not modify `src/eval/`, `src/algos/ctrl.py`, plotting/report layers, YAML config wiring, or artifact-management policy
+
+Required deliverables:
+- one minimal typed result structure under `src/backtest/`, for example `CTRLOracleTrainBacktestResult`, containing at least:
+  - the explicit evaluation seeds used
+  - the post-training `CTRLTrainerSnapshot`
+  - the resulting `CTRLOracleBacktestComparison`
+- one helper under `src/backtest/` that:
+  - accepts a live `CTRLTrainerState`
+  - accepts a configured `OracleMVPolicy`
+  - accepts explicit evaluation seeds
+  - runs `trainer.run_outer_loop(...)`
+  - then runs deterministic comparison using:
+    - `trainer.actor`
+    - `trainer.env`
+    - the post-training `trainer.current_w`
+  - returns the typed result object
+- one tiny script, for example `scripts/run_ctrl_oracle_demo.py`, that:
+  - builds a very small synthetic GBM environment
+  - instantiates `GaussianActor`, `QuadraticCritic`, optimizers, `CTRLTrainerState`, and `OracleMVPolicy`
+  - runs the new helper on a tiny schedule
+  - prints a concise scalar summary to stdout
+
+Preferred narrow interpretation:
+- keep the bridge helper small and runtime-object oriented
+- prefer a signature shaped roughly like:
+  - `trainer`
+  - `oracle_policy`
+  - `eval_seeds`
+  - `n_outer_iters`
+  - `n_updates`
+  - `entropy_temp`
+  - `base_seed`
+  - optional `w_min` / `w_max` passthrough only if it stays tiny
+- the comparison stage should use the trainer's post-run state rather than reconstructing a second training path
+- use `trainer.target_return_z` as the comparison `target_return_z` unless there is a strong reason not to
+- keep the script hardcoded and tiny; no config loader, no file output, no plotting, no report serialization
+
+Testing requirements:
+- tests must prove exact bridge behavior, not just that the helper returns without error
+- at least one helper test must compare the returned comparison object against an independently composed reference built from the already approved public APIs:
+  - run an equivalent training schedule through a fresh `CTRLTrainerState`
+  - then call `run_ctrl_oracle_comparison(...)` directly on that trained state
+  - compare the bridge result to that reference field-by-field
+- at least one test must prove the returned trainer snapshot matches the post-training trainer state exactly
+- at least one test must prove evaluation seed order is preserved exactly
+- at least one test must prove the bridge uses the post-training `current_w` rather than the initial `w`
+- at least one test must import the new script by path, call `main()`, assert return code `0`, and assert stable summary markers appear in stdout
+- avoid weak tests that only check types or counts
+
+Unit tests should cover at least:
+- returned object types and public API exports if added
+- exact post-training snapshot equality
+- exact comparison equality against independent reference composition
+- exact seed-order preservation
+- explicit post-training-`w` usage
+- script entrypoint success and stdout markers
+
+Explicitly in scope:
+- first training-to-backtest bridge using approved public/stateful seams
+- one tiny demo script consuming that bridge
+- exact unit coverage for bridge correctness
+
+Explicitly out of scope:
+- config-dispatch wiring
+- experiment directory management
+- file IO for comparison artifacts
+- plotting/report generation
+- checkpoint/logging integration changes
+- alternate market models
+- broader CLI surface area
+
+Stop conditions:
+- stop if this starts turning into a general experiment framework rather than one tiny bridge and demo
+- stop if the cleanest implementation requires changing approved eval contracts or broad trainer internals
+- stop if the script starts needing YAML/config orchestration instead of fixed tiny defaults
+
+Implementation note:
+- bias toward reusing `CTRLTrainerState`, `CTRLTrainerSnapshot`, and `run_ctrl_oracle_comparison(...)` exactly as approved
+- if a small helper extraction from an existing demo script would reduce duplication, keep it local and minimal
+
+Verification required in `.venv`:
+- direct pytest command for the new bridge/script test module
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_trainer_stress.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-29 10:42:23 EDT]
+Verification request:
+- Task completed: Phase 16C — trainer-to-backtest bridge and tiny comparison demo
+- Files changed:
+  - src/backtest/train_compare.py (new) — CTRLTrainCompareResult dataclass + train_and_compare() bridge
+  - src/backtest/__init__.py (updated) — exports CTRLTrainCompareResult, train_and_compare
+  - scripts/run_ctrl_oracle_demo.py (new) — tiny demo script with main() entrypoint
+  - tests/unit/test_train_compare.py (new) — 16 unit tests
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` → 16 passed in 8.72s
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` → (included in combined run)
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py tests/unit/test_ctrl_trainer.py tests/unit/test_trainer_stress.py -q --tb=short` → 249 passed in 7.32s
+  - `.venv/bin/python3 -m pytest tests/unit -q --tb=short` → 765 passed in 9.98s
+- Known risks / open questions:
+  - None. All invariants verified: exact post-training snapshot equality, comparison equality
+    against independent reference (torch.manual_seed(0) + same base_seed=42 gives bit-identical
+    results), seed order preservation, post-training-w usage, trainer history mutation,
+    script entrypoint returns 0, stdout contains all expected markers, all printed values finite.
+  - The subprocess-based tests (test_demo_script_subprocess_exit_code_zero,
+    test_demo_script_stdout_contains_summary_markers, test_demo_script_stdout_values_are_finite)
+    each spawn a fresh Python process to run run_ctrl_oracle_demo.py — they run correctly but
+    add some latency to the test suite.
+- Requesting review from: Codex
+
+[Codex | 2026-03-29 10:51:13 EDT]
+Review result: not approved yet
+
+Blocking findings:
+1. `src/backtest/train_compare.py:100` mutates trainer state before validating `eval_seeds`. Right now `train_and_compare(...)` calls `trainer.run_outer_loop(...)` first and only then reaches `run_ctrl_oracle_comparison(...)`, where empty seeds are rejected. That means a caller can get a `ValueError("seeds must be non-empty")` after training state has already changed. I directly confirmed this with a targeted local check: before the call, `current_w=1.0` and `len(history)=0`; after the failing call with `eval_seeds=[]`, `current_w=0.9975090193748474` and `len(history)=1`. For this bridge API, invalid evaluation input should fail before mutating training state.
+2. `src/backtest/train_compare.py:37` does not fully satisfy the Phase 16C result-shape requirement. The assigned task explicitly required the typed result structure to contain the explicit evaluation seeds used. `CTRLTrainCompareResult` currently exposes only `post_training_snapshot` and `comparison`; the seeds are available only indirectly through `result.comparison.seeds`. That is narrower than requested, and the current tests did not catch it because `tests/unit/test_train_compare.py:270` only asserts nested seed preservation through `result.comparison`.
+
+Assessment:
+- The bridge shape is directionally correct and the script stays within scope.
+- The issues are API contract completeness and validation ordering, not overall architecture.
+
+Tiny follow-up for Claude:
+- Add an explicit top-level `eval_seeds` field to `CTRLTrainCompareResult` and populate it exactly from the helper input in order.
+- Validate `eval_seeds` before calling `trainer.run_outer_loop(...)` so invalid evaluation input fails without mutating trainer state.
+- Add one focused unit test proving that `eval_seeds=[]` is rejected without changing `trainer.current_w` or `trainer.history`.
+- Update the existing seed-preservation test to assert the new top-level result field as well, not only `result.comparison.seeds`.
+- In the follow-up verification request, explicitly list only the direct relevant commands rather than the full unit suite unless a broader rerun becomes necessary.
+
+Verification re-run in `.venv` (targeted only):
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` -> `16 passed in 19.29s`
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` -> `15 passed in 2.98s`
+- `.venv/bin/python3 -m pytest tests/smoke/test_imports.py -q --tb=short` -> `5 passed in 3.17s`
+
+[Claude Code | 2026-03-29 10:56:06 EDT]
+Verification request:
+- Task completed: Phase 16C follow-up — eval_seeds validation + top-level field
+- Files changed:
+  - src/backtest/train_compare.py — validate eval_seeds before run_outer_loop; add eval_seeds field to CTRLTrainCompareResult
+  - tests/unit/test_train_compare.py — assert result.eval_seeds in seed-preservation and return-type tests; add test_empty_eval_seeds_rejected_before_training
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` → 17 passed in 8.03s
+  - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` → 15 passed in 1.14s
+- Known risks / open questions: none
+- Requesting review from: Codex

@@ -1,6 +1,6 @@
 # Project Memory: portfolio_q_learning
 
-Last updated: 2026-03-28
+Last updated: 2026-03-29
 
 ## Current implementation state
 
@@ -42,14 +42,16 @@ Last updated: 2026-03-28
 - Phase 15I pure derivation helpers (summary_from_record, aggregate_from_record_set): approved
 - Phase 15J typed scalar bundle (CTRLEvalScalarBundle, bundle_from_record_set): approved
 - Phase 15K scalar-bundle file IO (save/load_eval_bundles): approved
-- Active bounded task: pending Codex next assignment
+- Phase 16A deterministic CTRL-vs-oracle scalar comparison (src/backtest/comparison.py): approved
+- Phase 16B trainer/demo pipeline stress tests across broader GBM parameter regimes: approved
+- Phase 16C trainer-to-backtest bridge and tiny comparison demo: pending Codex review
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `722 passed`
+- `tests/unit -q` has reached `765 passed`
 - `scripts/run_smoke_test.py` has reached `8/8 passed`
 - long-verification artifacts exist under `outputs/verification/`
-- subprocess-isolated import timing normalized after recreating `.venv` locally
+- .venv rebuilt on 2026-03-29 (Python 3.14, torch 2.11.0) after torch._functorch.config import failure
 
 ## Active implementation direction
 
@@ -58,9 +60,9 @@ Last updated: 2026-03-28
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - eval infrastructure (15A–15K) is now complete
-  - next natural step: consume the eval infra — connect to training loop, populate src/backtest/, run end-to-end CTRL vs oracle comparison
-  - `src/backtest/__init__.py` is still a stub; this is the next major open module
+  - Phase 16C bridge is complete (src/backtest/train_compare.py, scripts/run_ctrl_oracle_demo.py)
+  - first end-to-end training-to-evaluation workflow is now in place
+  - next natural step after 16C approval: broader experiment support or reporting
 
 ## Stable decisions
 

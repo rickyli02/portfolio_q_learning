@@ -8,7 +8,7 @@ This file should be treated as an implementation roadmap, not a paper note.
 
 ## Current snapshot
 
-As of 2026-03-28:
+As of 2026-03-29:
 
 - Phase 1 scaffold exists.
 - Phase 2 config/data foundation exists.
@@ -49,6 +49,8 @@ As of 2026-03-28:
 - Phase 15I pure record-to-scalar derivation helpers are approved.
 - Phase 15J typed scalar bundle foundation is approved.
 - Phase 15K scalar-bundle file IO foundation is approved.
+- Phase 16A deterministic CTRL-vs-oracle scalar comparison under `src/backtest/` is approved.
+- Phase 16B trainer/demo pipeline stress-case coverage is approved.
 - Latest verified outputs with current repo state are:
   - current evaluation-summary verification:
     - `tests/unit/test_eval_summary.py -q -> 65 passed`
@@ -62,15 +64,22 @@ As of 2026-03-28:
     - `tests/unit/test_eval_derive.py -q -> 14 passed`
   - current scalar-bundle verification:
     - `tests/unit/test_eval_bundle.py -q -> 11 passed`
+  - current backtest comparison verification:
+    - `tests/unit/test_backtest_comparison.py -q -> 15 passed`
+  - current trainer stress verification:
+    - `tests/unit/test_trainer_stress.py -q -> 12 passed`
+  - current trainer-step verification:
+    - `tests/unit/test_ctrl_trainer.py -q -> 222 passed`
   - current full unit-suite verification:
-    - `tests/unit -q -> 722 passed`
+    - `tests/unit -q -> 749 passed`
   - latest directly confirmed smoke remains older:
     - `scripts/run_smoke_test.py -> 8/8 passed`
   - current normalized import-timing artifact:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 15K is approved; Claude is paused pending the next bounded task
+  - Phase 16C trainer-to-backtest bridge and tiny comparison demo
+  - objective: connect `CTRLTrainerState` training to the approved deterministic CTRL-vs-oracle comparison seam and expose one tiny end-to-end demo consumer
 - The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -82,9 +91,13 @@ As of 2026-03-28:
   - do not keep extending the eval layer by default
   - prefer the next bounded tasks to consume the approved eval stack in a real workflow
   - highest-value next directions are:
-    - populate `src/backtest/`
-    - connect training output to evaluation/oracle comparison
+    - connect trainer output to the approved backtest/eval comparison seam
     - add an end-to-end experiment/evaluation script
+    - only then consider additional reporting/plotting consumers
+- Follow-through after Phase 16A / 16B:
+  - the first backtest consumer now exists under `src/backtest/`
+  - trainer/demo stress coverage now exercises the correct trainer-facing stateful shell boundary
+  - the next assigned bridge task is to combine training and comparison in one bounded consumer
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
@@ -93,6 +106,7 @@ As of 2026-03-28:
   - decide later whether smoke should assert specific CTRL demo summary markers rather than only successful completion
 - Process reminder:
   - when a bounded task adds a new dedicated test file, Claude's verification request should explicitly list that file's direct pytest command rather than relying only on `tests/unit`
+  - when a task defines the target pipeline in terms of a specific public/stateful API boundary, tests should exercise that boundary directly rather than a lower-level helper
 - Phase 2 planning notes were archived to:
   - `references/archive/2026-03-26_phase2_execution_brief.md`
   - `codex_files/archive/2026-03-26_phase2_manager_notes.md`
