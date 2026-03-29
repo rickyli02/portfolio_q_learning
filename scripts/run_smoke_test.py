@@ -14,6 +14,8 @@ Or without activating:
 """
 
 import argparse
+import contextlib
+import io
 import sys
 import traceback
 from pathlib import Path
@@ -252,10 +254,41 @@ def main(config_path: str) -> int:
         spec = importlib.util.spec_from_file_location("run_ctrl_demo", demo_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        rc = module.main()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = module.main()
         assert rc == 0, f"run_ctrl_demo.main() returned non-zero exit code: {rc}"
+        out = buf.getvalue()
+        for marker in ("--- CTRL demo summary ---", "w_final", "last_terminal_wealth", "history_len"):
+            assert marker in out, f"run_ctrl_demo stdout missing marker: {marker!r}"
 
     results.append(_check("CTRL trainer demo (run_ctrl_demo.py)", _ctrl_trainer_demo))
+
+    # ------------------------------------------------------------------
+    # 9. CTRL-vs-oracle demo (run_ctrl_oracle_demo.py entrypoint)
+    # ------------------------------------------------------------------
+    def _ctrl_oracle_demo():
+        import importlib.util
+        demo_path = _REPO_ROOT / "scripts" / "run_ctrl_oracle_demo.py"
+        spec = importlib.util.spec_from_file_location("run_ctrl_oracle_demo", demo_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = module.main()
+        assert rc == 0, f"run_ctrl_oracle_demo.main() returned non-zero exit code: {rc}"
+        out = buf.getvalue()
+        for marker in (
+            "--- CTRL-vs-oracle demo summary ---",
+            "post_training_w",
+            "ctrl_mean_tw",
+            "oracle_mean_tw",
+            "mean_tw_delta",
+            "ctrl_win_rate",
+        ):
+            assert marker in out, f"run_ctrl_oracle_demo stdout missing marker: {marker!r}"
+
+    results.append(_check("CTRL-vs-oracle demo (run_ctrl_oracle_demo.py)", _ctrl_oracle_demo))
 
     # ------------------------------------------------------------------
     # Summary

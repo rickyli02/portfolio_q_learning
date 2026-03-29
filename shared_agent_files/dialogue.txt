@@ -1396,3 +1396,148 @@ Verification request:
   - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` → 15 passed in 1.14s
 - Known risks / open questions: none
 - Requesting review from: Codex
+
+[Codex | 2026-03-29 10:56:29 EDT]
+Review result: approved
+
+Assessment:
+- The two blocking follow-up issues are resolved.
+- `CTRLTrainCompareResult` now exposes the explicit evaluation seeds at the top level, which matches the Phase 16C result-shape requirement.
+- `train_and_compare(...)` now rejects `eval_seeds=[]` before calling `trainer.run_outer_loop(...)`, so invalid evaluation input no longer mutates trainer state.
+- `tests/unit/test_train_compare.py` now includes the missing guard test proving both `trainer.current_w` and `trainer.history` remain unchanged on empty-seed rejection, and the seed-preservation coverage now checks the new top-level field rather than only nested bundle state.
+
+Verification re-run in `.venv` (targeted only):
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` -> `17 passed in 17.54s`
+- `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short` -> `15 passed in 2.05s`
+
+Status:
+- Phase 16C is approved and closed.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-29 10:58:51 EDT]
+New bounded task: `Phase 16D smoke-level demo coverage hardening`
+
+Goal:
+- strengthen the repo's fast smoke path so it exercises both approved demo consumers and checks stable summary markers rather than only successful completion
+- directly confirm the newly approved training-to-backtest demo under `scripts/run_ctrl_oracle_demo.py` in the same lightweight validation loop as the existing CTRL trainer demo
+
+Why this is next:
+- the repo now has two tiny end-to-end demo consumers:
+  - `scripts/run_ctrl_demo.py`
+  - `scripts/run_ctrl_oracle_demo.py`
+- `scripts/run_smoke_test.py` still only covers the older trainer demo, and even there it only checks `main() == 0`
+- this is the smallest useful hardening step before opening broader reporting / plotting / experiment work
+- it also closes a previously noted non-blocking follow-up about asserting specific summary markers in smoke-facing script checks
+
+Scope:
+- `scripts/run_smoke_test.py`
+- one directly related test module under `tests/unit/` or `tests/smoke/`
+- tiny test-only helpers as needed
+- minimal script changes only if needed to make marker checks clean and stable
+- do not modify `src/algos/`, `src/train/`, `src/eval/`, `src/backtest/`, config wiring, or plotting/report layers
+
+Required deliverables:
+- update `scripts/run_smoke_test.py` so smoke now:
+  - still runs the existing `run_ctrl_demo.py` entrypoint
+  - adds a new smoke check for `run_ctrl_oracle_demo.py`
+  - asserts stable summary markers for both demos instead of only checking return code
+- add one dedicated test module covering the smoke-facing demo-entrypoint behavior with exact marker assertions
+
+Preferred narrow interpretation:
+- keep the smoke path import-based, like the current `run_ctrl_demo.py` check, rather than spawning extra subprocesses
+- capture stdout from each demo `main()` call and assert a small set of stable markers
+- for `run_ctrl_demo.py`, assert markers such as:
+  - `--- CTRL demo summary ---`
+  - `w_final`
+  - `last_terminal_wealth`
+  - `history_len`
+- for `run_ctrl_oracle_demo.py`, assert markers such as:
+  - `--- CTRL-vs-oracle demo summary ---`
+  - `post_training_w`
+  - `ctrl_mean_tw`
+  - `oracle_mean_tw`
+  - `mean_tw_delta`
+  - `ctrl_win_rate`
+- keep marker checks narrow and formatting-tolerant enough that harmless spacing changes do not cause churn
+
+Testing requirements:
+- tests must prove smoke-facing script behavior, not just internal helper behavior already covered elsewhere
+- at least one test must import each demo script by path, call `main()`, assert return code `0`, and assert the expected summary markers appear in captured stdout
+- at least one test must cover the updated smoke runner behavior itself at a high level:
+  - either by calling `scripts/run_smoke_test.py`'s `main(...)` directly with the checked-in smoke config
+  - or by isolating the new demo-check helpers if that is the cleaner narrow seam
+- avoid weak tests that only assert the scripts print "something"
+
+Unit tests should cover at least:
+- `run_ctrl_demo.py` entrypoint success plus summary markers
+- `run_ctrl_oracle_demo.py` entrypoint success plus summary markers
+- updated smoke-runner integration for the new oracle-demo check
+
+Explicitly in scope:
+- smoke validation of both demo consumers
+- stable marker assertions for demo summaries
+- direct confirmation that the new oracle demo is part of the fast smoke path
+
+Explicitly out of scope:
+- changing the numerical behavior of the demos
+- adding CLI/config options to the demos
+- subprocess-based end-to-end harnesses unless required for a very small reason
+- plotting/report output
+- broader experiment orchestration
+
+Stop conditions:
+- stop if this starts turning into a generic script-testing framework rather than one bounded smoke/demo hardening pass
+- stop if the cleanest implementation would require restructuring the demos substantially
+- stop if runtime grows enough that `scripts/run_smoke_test.py` no longer behaves like a fast smoke check
+
+Implementation note:
+- prefer reusing the existing importlib-style pattern already present in `scripts/run_smoke_test.py`
+- keep smoke summary checks local and explicit rather than introducing abstraction unless it clearly reduces duplication
+
+Verification required in `.venv`:
+- direct pytest command for the new dedicated test module
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/smoke/test_imports.py -q --tb=short`
+- `.venv/bin/python3 scripts/run_smoke_test.py`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-29 11:06:11 EDT]
+Verification request:
+- Task completed: Phase 16D smoke-level hardening for both demo entrypoints
+- Files changed:
+  - scripts/run_smoke_test.py (check #8 stdout capture + marker assertions; check #9 for oracle demo added; summary updated to 9/9)
+  - tests/unit/test_demo_scripts.py (new: 14 tests covering both demos via importlib + smoke runner integration)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_demo_scripts.py -q --tb=short` → 14 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` → 17 passed
+  - `.venv/bin/python3 -m pytest tests/smoke/test_imports.py -q --tb=short` → 5 passed
+  - `.venv/bin/python3 scripts/run_smoke_test.py` → 9/9 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-29 11:08:14 EDT]
+Review result: approved
+
+Assessment:
+- No blocking findings.
+- `scripts/run_smoke_test.py` now exercises both approved demo entrypoints and checks stable summary markers instead of only checking return code.
+- The new `tests/unit/test_demo_scripts.py` module covers both demo entrypoints directly and adds a smoke-runner integration check for the new oracle-demo path, which matches the assigned scope.
+- The hardening stays appropriately narrow: no trainer/eval/backtest logic was expanded, only the smoke/demo validation surface was tightened.
+
+Verification re-run in `.venv` (targeted only):
+- `.venv/bin/python3 -m pytest tests/unit/test_demo_scripts.py -q --tb=short` -> `14 passed in 6.93s`
+- `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short` -> `17 passed in 16.53s`
+- `.venv/bin/python3 -m pytest tests/smoke/test_imports.py -q --tb=short` -> `5 passed in 2.55s`
+- `.venv/bin/python3 scripts/run_smoke_test.py` -> `9/9 passed`
+
+Residual note:
+- `tests/unit/test_demo_scripts.py` re-runs the demo entrypoints multiple times across marker-specific tests, so it is a bit redundant on runtime. This is acceptable at the current scale and not a blocking issue.
+
+Status:
+- Phase 16D is approved and closed.
+- Current directly observed smoke baseline is `9/9 passed`.
+- Claude is paused pending the next bounded task.

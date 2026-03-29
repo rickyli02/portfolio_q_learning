@@ -1,6 +1,6 @@
 ## Repo Design Memory
 
-Last updated: 2026-03-28
+Last updated: 2026-03-29
 Owner: Codex
 
 ### Constraint behavior decisions
@@ -117,7 +117,8 @@ Owner: Codex
 - The next quality bottleneck initially shifted from "missing consumer" to "testing the correct trainer-facing surface".
 - Current sequencing decision:
   - Phase 16B resolved that trainer-facing stress-coverage gap around the approved stateful shell
-  - the next bounded consumer should connect `CTRLTrainerState` output to deterministic CTRL-vs-oracle comparison in one small post-run flow
+  - Phase 16C then connected `CTRLTrainerState` output to deterministic CTRL-vs-oracle comparison in one small post-run flow
+  - the next bounded hardening step is to bring both demo consumers into the fast smoke path with stable summary-marker checks
 - Review lesson from the Phase 16B follow-up:
   - direct tests of `ctrl_outer_loop(...)` are useful but do not substitute for stateful-shell coverage when the task explicitly names `CTRLTrainerState.run_outer_loop(...)`
   - snapshot/history behavior should be treated as part of the trainer pipeline contract once the stateful shell is the requested seam

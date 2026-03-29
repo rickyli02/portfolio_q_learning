@@ -51,6 +51,7 @@ As of 2026-03-29:
 - Phase 15K scalar-bundle file IO foundation is approved.
 - Phase 16A deterministic CTRL-vs-oracle scalar comparison under `src/backtest/` is approved.
 - Phase 16B trainer/demo pipeline stress-case coverage is approved.
+- Phase 16C trainer-to-backtest bridge and tiny comparison demo is approved.
 - Latest verified outputs with current repo state are:
   - current evaluation-summary verification:
     - `tests/unit/test_eval_summary.py -q -> 65 passed`
@@ -66,6 +67,8 @@ As of 2026-03-29:
     - `tests/unit/test_eval_bundle.py -q -> 11 passed`
   - current backtest comparison verification:
     - `tests/unit/test_backtest_comparison.py -q -> 15 passed`
+  - current trainer-to-backtest bridge verification:
+    - `tests/unit/test_train_compare.py -q -> 17 passed`
   - current trainer stress verification:
     - `tests/unit/test_trainer_stress.py -q -> 12 passed`
   - current trainer-step verification:
@@ -78,8 +81,8 @@ As of 2026-03-29:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 16C trainer-to-backtest bridge and tiny comparison demo
-  - objective: connect `CTRLTrainerState` training to the approved deterministic CTRL-vs-oracle comparison seam and expose one tiny end-to-end demo consumer
+  - Phase 16D smoke-level demo coverage hardening
+  - objective: add both approved demo consumers to the fast smoke path and assert stable summary markers rather than only successful completion
 - The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -97,13 +100,13 @@ As of 2026-03-29:
 - Follow-through after Phase 16A / 16B:
   - the first backtest consumer now exists under `src/backtest/`
   - trainer/demo stress coverage now exercises the correct trainer-facing stateful shell boundary
-  - the next assigned bridge task is to combine training and comparison in one bounded consumer
+  - the Phase 16C bridge now combines training and deterministic CTRL-vs-oracle comparison in one bounded consumer
+  - the next assigned hardening task is to add smoke-level coverage for both demo entrypoints
 - Pending follow-up TODO items identified by review and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
   - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
   - add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state beyond simple SGD
-  - decide later whether smoke should assert specific CTRL demo summary markers rather than only successful completion
 - Process reminder:
   - when a bounded task adds a new dedicated test file, Claude's verification request should explicitly list that file's direct pytest command rather than relying only on `tests/unit`
   - when a task defines the target pipeline in terms of a specific public/stateful API boundary, tests should exercise that boundary directly rather than a lower-level helper

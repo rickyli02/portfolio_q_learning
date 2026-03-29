@@ -13,9 +13,9 @@ but they are easy to forget if they live only in `shared_agent_files/dialogue.tx
   - Context: one earlier dialogue entry mixed the broader `tests/` count with the narrower `tests/unit` count.
   - Impact: coordination/documentation clarity only.
 
-- Consider strengthening the smoke check for `scripts/run_ctrl_demo.py` to assert specific summary markers rather than only successful completion.
-  - Current state: smoke now exercises the real demo entrypoint and treats exit success as sufficient.
-  - Impact: slightly stronger regression detection for script output formatting.
+- Consider keeping smoke-facing demo marker checks narrow and stable once Phase 16D lands.
+  - Current state: an active bounded task now targets marker-based smoke coverage for both `scripts/run_ctrl_demo.py` and `scripts/run_ctrl_oracle_demo.py`.
+  - Impact: avoid brittle formatting assertions while still catching real demo-entrypoint regressions.
 
 - Add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state.
   - Current state: checkpoint roundtrip tests mostly exercise scalar/model restore paths with simple SGD.
