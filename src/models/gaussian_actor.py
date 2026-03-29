@@ -47,6 +47,7 @@ import torch
 import torch.nn as nn
 
 from src.models.base import ActorBase
+from src.utils.numerics import warn_if_unstable
 
 
 class GaussianActor(ActorBase):
@@ -110,12 +111,16 @@ class GaussianActor(ActorBase):
     @property
     def phi1(self) -> torch.Tensor:
         """Per-asset mean coefficient φ₁ > 0, shape ``(n_risky,)``."""
-        return torch.exp(self.log_phi1)
+        val = torch.exp(self.log_phi1)
+        warn_if_unstable(val, "GaussianActor.phi1")
+        return val
 
     @property
     def phi2(self) -> torch.Tensor:
         """Variance level φ₂ > 0, scalar."""
-        return torch.exp(-self.log_phi2_inv)
+        val = torch.exp(-self.log_phi2_inv)
+        warn_if_unstable(val, "GaussianActor.phi2")
+        return val
 
     def variance(self, t: float | torch.Tensor) -> torch.Tensor:
         """Scalar variance φ₂·e^{φ₃·(T−t)} at time t.
@@ -131,7 +136,9 @@ class GaussianActor(ActorBase):
             Scalar variance tensor.
         """
         t_t = torch.as_tensor(t, dtype=self.phi3.dtype, device=self.phi3.device)
-        return self.phi2 * torch.exp(self.phi3 * (self.horizon - t_t))
+        val = self.phi2 * torch.exp(self.phi3 * (self.horizon - t_t))
+        warn_if_unstable(val, "GaussianActor.variance")
+        return val
 
     # ------------------------------------------------------------------
     # ActorBase interface

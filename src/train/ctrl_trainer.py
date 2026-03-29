@@ -111,6 +111,10 @@ def ctrl_train_step(
     Returns:
         ``CTRLStepResult`` with scalar diagnostics from this step.
     """
+    # 0. Fail fast on non-finite model parameters before any computation.
+    actor.validate_parameters()
+    critic.validate_parameters()
+
     # 1. Derive dt from env (not caller-supplied) to prevent mismatches.
     dt: float = env.horizon / env.n_steps
 

@@ -1541,3 +1541,131 @@ Status:
 - Phase 16D is approved and closed.
 - Current directly observed smoke baseline is `9/9 passed`.
 - Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-29 11:09:34 EDT]
+New bounded task: `Phase 17A numerical-safety diagnostics foundation`
+
+Goal:
+- add the first bounded numerical-safety layer for the current model/oracle stack without silently changing math
+- make obvious unstable states warn or raise with informative diagnostics before broader experiment/reporting work starts leaning on the current demos
+
+Why this is next:
+- the repo now has functioning trainer, backtest, bridge, and demo consumers
+- the main remaining pre-recorded risk area is numerical safety in:
+  - `GaussianActor`
+  - `QuadraticCritic`
+  - `oracle_mv.py`
+- the roadmap already captured this as an intended future task, and it is a better next hardening step than opening broader experiment/reporting infrastructure right now
+
+Scope:
+- `src/utils/`
+- `src/models/base.py`
+- `src/models/gaussian_actor.py`
+- `src/models/quadratic_critic.py`
+- `src/algos/oracle_mv.py`
+- if needed, one tiny trainer-side hook under `src/train/ctrl_trainer.py`
+- directly related unit tests under `tests/unit/`
+- do not modify `src/eval/`, `src/backtest/`, scripts, config wiring, or plotting/report layers
+
+Required deliverables:
+- one small utility module under `src/utils/`, for example `numerics.py`, with a helper such as:
+  - `warn_if_unstable(tensor, name, threshold=1e6)`
+- the helper should:
+  - issue `warnings.warn(...)` when:
+    - absolute values exceed the threshold, or
+    - the tensor contains `inf` / `nan`
+  - include the tensor name and offending values or a concise summary of them in the warning text
+  - not clamp or mutate the tensor
+- add a lightweight `validate_parameters()` method to `ActorBase` and `CriticBase` that raises `ValueError` on non-finite parameter tensors
+- wire targeted diagnostics into the current risk points:
+  - `GaussianActor`:
+    - computed `phi1`
+    - computed `phi2`
+    - computed variance in `variance(...)`
+  - `QuadraticCritic`:
+    - exponential decay factor or quadratic term path in `forward(...)`
+  - `oracle_mv.py`:
+    - improve the singular/failed solve path so the raised `ValueError` includes at least the covariance condition signal and the input `mu` / `sigma` context
+- if the cleanest seam is tiny and local, call `validate_parameters()` at the start of `ctrl_train_step(...)`
+
+Preferred narrow interpretation:
+- warnings for large-but-finite unstable values
+- raises only for clearly invalid non-finite states or linear-solve failure
+- no silent clamping, no epsilon injection, no behavior-changing fallback allocations
+- keep warning calls on computed intermediates, not on every raw parameter read
+- for the oracle path, prefer staying with `torch.linalg.solve`; improve diagnostics rather than redesigning the computation
+
+Testing requirements:
+- tests must prove the warning/raise boundary exactly, not just that the code still runs
+- add unit tests covering at least:
+  - `warn_if_unstable(...)` does not warn for ordinary finite values
+  - `warn_if_unstable(...)` warns for very large finite values
+  - `warn_if_unstable(...)` warns for `inf` / `nan`
+  - `ActorBase` / `CriticBase` parameter validation raises on non-finite parameters in concrete subclasses
+  - `GaussianActor` emits warnings on unstable computed quantities under intentionally extreme parameter settings
+  - `QuadraticCritic` emits warnings on unstable exponential/forward quantities under intentionally extreme parameter settings
+  - `compute_oracle_coefficients(...)` still raises on singular covariance, but now with stronger diagnostics than just "singular"
+- if `ctrl_train_step(...)` gets the validation hook, add one focused test proving it fails fast on invalid model parameters before training work proceeds
+
+Unit tests should cover at least:
+- new numerics utility behavior
+- model parameter validation behavior
+- GaussianActor instability warning behavior
+- QuadraticCritic instability warning behavior
+- oracle diagnostic error-message behavior
+
+Explicitly in scope:
+- first warning/raise diagnostics layer for obvious numerical instability
+- improved oracle solve diagnostics
+- explicit non-finite parameter validation boundary
+
+Explicitly out of scope:
+- silent clamping or auto-correction
+- redesigning model parameterisation
+- broad trainer refactors
+- experiment/report infrastructure
+- plotting
+- alternate oracle formulas
+
+Stop conditions:
+- stop if this starts turning into a general numerical-analysis framework rather than a small diagnostics layer
+- stop if the cleanest implementation requires changing approved CTRL math rather than warning/raising around it
+- stop if warning volume becomes so broad that ordinary test/demo runs become noisy without clearly unstable inputs
+
+Implementation note:
+- keep the threshold convention aligned with the roadmap note: large absolute values around `1e6` merit a warning; non-finite values should be treated more strictly
+- prefer one small shared utility over ad hoc warning logic duplicated across files
+
+Verification required in `.venv`:
+- direct pytest command for the new/updated numerics-focused test module(s)
+- `.venv/bin/python3 -m pytest tests/unit/test_models.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_oracle.py -q --tb=short`
+- if `ctrl_train_step(...)` is touched, include `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short`
+
+Review gate:
+- after implementation, post a verification request and remain paused
+
+GO
+
+[Claude Code | 2026-03-29 11:16:21 EDT]
+Verification request:
+- Task completed: Phase 17A numerical-safety diagnostics foundation
+- Files changed:
+  - src/utils/numerics.py (new: warn_if_unstable helper)
+  - src/models/base.py (validate_parameters() on ActorBase and CriticBase)
+  - src/models/gaussian_actor.py (warn_if_unstable on phi1, phi2, variance)
+  - src/models/quadratic_critic.py (warn_if_unstable on decay and quad in forward)
+  - src/algos/oracle_mv.py (improved singular solve error with cond, mu, sigma context)
+  - src/train/ctrl_trainer.py (validate_parameters() called at start of ctrl_train_step)
+  - tests/unit/test_numerics.py (new: 29 tests)
+  - tests/unit/test_oracle.py (3 new oracle diagnostic error-message tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_numerics.py -q --tb=short` → 29 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_models.py -q --tb=short` → 49 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_oracle.py -q --tb=short` → 36 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short` → 222 passed
+- Known risks / open questions:
+  - The extreme-theta3 decay test triggers a secondary quad warning (nan from inf*0 in the
+    quadratic term) in addition to the expected decay warning; this is correct behavior but
+    means pytest shows one extra UserWarning in the summary for that test
+- Requesting review from: Codex

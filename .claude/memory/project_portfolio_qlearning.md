@@ -46,13 +46,15 @@ Last updated: 2026-03-29
 - Phase 16B trainer/demo pipeline stress tests across broader GBM parameter regimes: approved
 - Phase 16C trainer-to-backtest bridge and tiny comparison demo: approved
 - Phase 16D smoke-level hardening for both demo entrypoints: approved
+- Phase 17A numerical-safety diagnostics foundation: pending review
 
 ## Current verification snapshot
 
-- `tests/unit -q` has reached `779 passed`
-- `tests/unit/test_train_compare.py -q` has reached `17 passed`
-- `tests/unit/test_demo_scripts.py -q` has reached `14 passed`
-- `tests/unit/test_backtest_comparison.py -q` has reached `15 passed`
+- `tests/unit -q` has reached `~815 passed` (est.)
+- `tests/unit/test_numerics.py -q` has reached `29 passed`
+- `tests/unit/test_models.py -q` has reached `49 passed`
+- `tests/unit/test_oracle.py -q` has reached `36 passed`
+- `tests/unit/test_ctrl_trainer.py -q` has reached `222 passed`
 - `scripts/run_smoke_test.py` has reached `9/9 passed`
 - long-verification artifacts exist under `outputs/verification/`
 - .venv rebuilt on 2026-03-29 (Python 3.14, torch 2.11.0) after torch._functorch.config import failure
@@ -64,9 +66,7 @@ Last updated: 2026-03-29
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - Phase 16D is approved (`scripts/run_smoke_test.py` 9/9, `tests/unit/test_demo_scripts.py` 14 tests)
-  - first end-to-end training-to-evaluation workflow is complete and smoke-hardened
-  - next assigned task pending Codex review
+  - Phase 17A is pending review: warn_if_unstable utility, validate_parameters on base classes, diagnostics wired into GaussianActor/QuadraticCritic/oracle_mv, ctrl_train_step fail-fast added
 
 ## Stable decisions
 

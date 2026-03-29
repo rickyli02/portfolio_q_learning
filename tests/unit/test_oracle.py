@@ -122,6 +122,42 @@ def test_coefficients_singular_sigma_raises():
         )
 
 
+def test_coefficients_singular_error_includes_cond():
+    """Improved diagnostics: error message includes covariance condition signal."""
+    with pytest.raises(ValueError, match="cond="):
+        compute_oracle_coefficients(
+            mu=[0.1, 0.08],
+            sigma=[[0.2, 0.2], [0.2, 0.2]],
+            r=0.05,
+            horizon=1.0,
+            gamma_embed=1.0,
+        )
+
+
+def test_coefficients_singular_error_includes_mu():
+    """Improved diagnostics: error message includes the input mu values."""
+    with pytest.raises(ValueError, match="mu="):
+        compute_oracle_coefficients(
+            mu=[0.1, 0.08],
+            sigma=[[0.2, 0.2], [0.2, 0.2]],
+            r=0.05,
+            horizon=1.0,
+            gamma_embed=1.0,
+        )
+
+
+def test_coefficients_singular_error_includes_sigma():
+    """Improved diagnostics: error message includes the input sigma values."""
+    with pytest.raises(ValueError, match="sigma="):
+        compute_oracle_coefficients(
+            mu=[0.1, 0.08],
+            sigma=[[0.2, 0.2], [0.2, 0.2]],
+            r=0.05,
+            horizon=1.0,
+            gamma_embed=1.0,
+        )
+
+
 # ---------------------------------------------------------------------------
 # oracle_action — sanity and shape checks
 # ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@ import torch
 import torch.nn as nn
 
 from src.models.base import CriticBase
+from src.utils.numerics import warn_if_unstable
 
 
 class QuadraticCritic(CriticBase):
@@ -104,7 +105,10 @@ class QuadraticCritic(CriticBase):
         time_to_go = T - t_t  # scalar or (B,)
 
         # (x − w)² · e^{−θ₃·(T−t)}
-        quad = (x_t - w_t) ** 2 * torch.exp(-self.theta3 * time_to_go)
+        decay = torch.exp(-self.theta3 * time_to_go)
+        warn_if_unstable(decay, "QuadraticCritic.decay")
+        quad = (x_t - w_t) ** 2 * decay
+        warn_if_unstable(quad, "QuadraticCritic.quad")
 
         # θ₂·(t² − T²) + θ₁·(t − T)
         time_correction = (

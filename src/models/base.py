@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 
 
+
 class ActorBase(nn.Module, abc.ABC):
     """Abstract interface for stochastic behavior policies and deterministic
     execution policies.
@@ -118,6 +119,23 @@ class ActorBase(nn.Module, abc.ABC):
             Scalar entropy value.
         """
 
+    def validate_parameters(self) -> None:
+        """Raise ``ValueError`` if any parameter tensor contains non-finite values.
+
+        Checks all parameters registered under ``self.parameters()``.  Call
+        this at the start of a training step to fail fast on corrupted model
+        state rather than propagating NaN/inf silently through the computation.
+
+        Raises:
+            ValueError: If any parameter contains ``inf`` or ``nan``.
+        """
+        for name, param in self.named_parameters():
+            if not torch.isfinite(param).all():
+                raise ValueError(
+                    f"ActorBase.validate_parameters: non-finite values in "
+                    f"parameter '{name}'; shape={tuple(param.shape)}"
+                )
+
 
 class CriticBase(nn.Module, abc.ABC):
     """Abstract interface for critic / value-function modules.
@@ -147,3 +165,20 @@ class CriticBase(nn.Module, abc.ABC):
         Returns:
             Scalar value for unbatched input, shape ``(B,)`` for batched input.
         """
+
+    def validate_parameters(self) -> None:
+        """Raise ``ValueError`` if any parameter tensor contains non-finite values.
+
+        Checks all parameters registered under ``self.parameters()``.  Call
+        this at the start of a training step to fail fast on corrupted model
+        state rather than propagating NaN/inf silently through the computation.
+
+        Raises:
+            ValueError: If any parameter contains ``inf`` or ``nan``.
+        """
+        for name, param in self.named_parameters():
+            if not torch.isfinite(param).all():
+                raise ValueError(
+                    f"CriticBase.validate_parameters: non-finite values in "
+                    f"parameter '{name}'; shape={tuple(param.shape)}"
+                )

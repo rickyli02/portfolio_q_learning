@@ -130,8 +130,15 @@ def compute_oracle_coefficients(
     try:
         sensitivity = torch.linalg.solve(cov, B)
     except torch.linalg.LinAlgError as exc:
+        try:
+            cond = torch.linalg.cond(cov).item()
+            cond_str = f"{cond:.3e}"
+        except Exception:
+            cond_str = "unavailable"
         raise ValueError(
-            "Cannot compute oracle coefficients: σ σᵀ is singular.  "
+            f"Cannot compute oracle coefficients: σ σᵀ is singular or "
+            f"numerically singular (cond={cond_str}).  "
+            f"mu={mu_t.tolist()}, sigma={sigma_t.tolist()}.  "
             "Check that the sigma matrix has full rank."
         ) from exc
 
