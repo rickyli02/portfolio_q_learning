@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Tiny CTRL-vs-oracle training and comparison demo — Phase 16C.
+"""Tiny CTRL-vs-oracle training and comparison demo — Phase 16C / 18B.
 
 Runs a small fixed CTRL training schedule on a synthetic single-asset GBM
 environment, then evaluates the trained policy against the Zhou–Li (2000)
-analytic oracle using the first training-to-backtest bridge helper.
+analytic oracle using the approved training-to-backtest bridge helper.
+The compact scalar summary is derived via the approved ``CTRLTrainCompareReport``
+seam (Phase 18A) rather than assembling fields ad hoc.
 
 Hardcoded tiny defaults:
 
@@ -63,6 +65,7 @@ def main() -> int:
 
     from src.algos.oracle_mv import OracleMVPolicy
     from src.backtest.train_compare import train_and_compare
+    from src.backtest.train_compare_report import summarize_train_compare
     from src.config.schema import AssetConfig, EnvConfig
     from src.envs.gbm_env import GBMPortfolioEnv
     from src.models.gaussian_actor import GaussianActor
@@ -124,19 +127,16 @@ def main() -> int:
         base_seed=_BASE_SEED,
     )
 
-    snap = result.post_training_snapshot
-    ctrl_agg = result.comparison.ctrl_bundle.aggregate
-    oracle_agg = result.comparison.oracle_bundle.aggregate
-    cmp = result.comparison.comparison
+    report = summarize_train_compare(result)
 
     print()
     print("--- CTRL-vs-oracle demo summary ---")
-    print(f"  post_training_w         : {snap.current_w:.6f}")
-    print(f"  last_terminal_wealth    : {snap.last_terminal_wealth:.6f}")
-    print(f"  ctrl_mean_tw            : {ctrl_agg.mean_terminal_wealth:.6f}")
-    print(f"  oracle_mean_tw          : {oracle_agg.mean_terminal_wealth:.6f}")
-    print(f"  mean_tw_delta           : {cmp.mean_terminal_wealth_delta:.6f}")
-    print(f"  ctrl_win_rate           : {cmp.ctrl_win_rate:.6f}")
+    print(f"  post_training_w         : {report.post_training_w:.6f}")
+    print(f"  last_terminal_wealth    : {report.last_terminal_wealth:.6f}")
+    print(f"  ctrl_mean_tw            : {report.ctrl_mean_terminal_wealth:.6f}")
+    print(f"  oracle_mean_tw          : {report.oracle_mean_terminal_wealth:.6f}")
+    print(f"  mean_tw_delta           : {report.mean_terminal_wealth_delta:.6f}")
+    print(f"  ctrl_win_rate           : {report.ctrl_win_rate:.6f}")
     print("--- end ---")
     print()
     return 0
