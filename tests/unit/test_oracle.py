@@ -218,15 +218,23 @@ def test_ill_conditioned_oracle_still_returns_valid_coefficients():
 
 
 def test_singular_still_raises_not_warns():
-    """Outright singular covariance still raises ValueError, not a mere warning."""
+    """Outright singular covariance raises ValueError without any preceding UserWarning.
+
+    Setting simplefilter("error", UserWarning) means any UserWarning would itself
+    become an exception; the fact that only ValueError is raised (matching "singular")
+    proves the ill-conditioning warning is not emitted on the failing path.
+    """
+    import warnings as _warnings
     with pytest.raises(ValueError, match="singular"):
-        compute_oracle_coefficients(
-            mu=[0.1, 0.08],
-            sigma=[[0.2, 0.2], [0.2, 0.2]],  # rank-1 → singular
-            r=0.05,
-            horizon=1.0,
-            gamma_embed=1.0,
-        )
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error", UserWarning)
+            compute_oracle_coefficients(
+                mu=[0.1, 0.08],
+                sigma=[[0.2, 0.2], [0.2, 0.2]],  # rank-1 → singular
+                r=0.05,
+                horizon=1.0,
+                gamma_embed=1.0,
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -126,11 +126,6 @@ def compute_oracle_coefficients(
     # env.mu is b (price SDE drift), so no Ito correction needed.
     B = mu_t - r
 
-    # Warn before the solve if the covariance is ill-conditioned but still
-    # potentially solvable.  The solve proceeds regardless; the warning is a
-    # diagnostic only and does not alter the computed coefficients.
-    warn_if_ill_conditioned(cov, "oracle covariance σσᵀ")
-
     # Sensitivity vector [σσᵀ]⁻¹ B via a linear solve (more numerically stable
     # than computing an explicit inverse, especially for ill-conditioned
     # covariance matrices from correlated assets or parameter sweeps).
@@ -148,6 +143,11 @@ def compute_oracle_coefficients(
             f"mu={mu_t.tolist()}, sigma={sigma_t.tolist()}.  "
             "Check that the sigma matrix has full rank."
         ) from exc
+
+    # Warn about poor conditioning only when the solve succeeded.  Placing this
+    # check after the solve ensures singular inputs raise ValueError without any
+    # preceding UserWarning; ill-conditioned but solvable inputs get the warning.
+    warn_if_ill_conditioned(cov, "oracle covariance σσᵀ")
 
     return OracleCoefficients(
         B=B,
