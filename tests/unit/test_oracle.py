@@ -159,6 +159,77 @@ def test_coefficients_singular_error_includes_sigma():
 
 
 # ---------------------------------------------------------------------------
+# Phase 17B — oracle conditioning-warning boundary
+# ---------------------------------------------------------------------------
+
+# A near-singular 2-asset covariance: highly correlated assets produce a
+# covariance matrix with a tiny second eigenvalue → large condition number.
+# sigma = [[s, s*(1-eps)], [0, s*sqrt(2*eps - eps^2)]] with very small eps
+# gives cov = sigma @ sigma.T with eigenvalues roughly [2s^2, 2s^2*eps].
+# Simpler: use diagonal sigma with extreme scale difference.
+_SIGMA_ILL = [[1.0, 0.0], [0.0, 1e-5]]   # cov = diag(1, 1e-10), cond ≈ 1e10
+_SIGMA_WELL = [[0.2, 0.0], [0.0, 0.15]]  # cov = diag(0.04, 0.0225), cond ≈ 1.8
+
+
+def test_no_warning_for_well_conditioned_covariance():
+    """Well-conditioned covariance does not trigger an ill-conditioning warning."""
+    import warnings as _warnings
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("error", UserWarning)
+        compute_oracle_coefficients(
+            mu=[0.08, 0.06], sigma=_SIGMA_WELL, r=0.05, horizon=1.0, gamma_embed=1.5,
+        )
+
+
+def test_warning_for_ill_conditioned_covariance():
+    """Near-singular but still solvable covariance triggers a conditioning warning."""
+    with pytest.warns(UserWarning, match="ill-conditioned"):
+        compute_oracle_coefficients(
+            mu=[0.08, 0.06], sigma=_SIGMA_ILL, r=0.05, horizon=1.0, gamma_embed=1.5,
+        )
+
+
+def test_ill_conditioned_warning_from_real_oracle_path():
+    """Warning comes from the oracle coefficient path, not an isolated helper."""
+    with pytest.warns(UserWarning, match="oracle covariance"):
+        compute_oracle_coefficients(
+            mu=[0.08, 0.06], sigma=_SIGMA_ILL, r=0.05, horizon=1.0, gamma_embed=1.5,
+        )
+
+
+def test_ill_conditioned_warning_message_contains_cond_value():
+    """Warning message carries the numeric condition number for diagnostics."""
+    with pytest.warns(UserWarning, match="cond="):
+        compute_oracle_coefficients(
+            mu=[0.08, 0.06], sigma=_SIGMA_ILL, r=0.05, horizon=1.0, gamma_embed=1.5,
+        )
+
+
+def test_ill_conditioned_oracle_still_returns_valid_coefficients():
+    """Despite warning, oracle coefficients are returned and sensitivity is finite."""
+    import warnings as _warnings
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("ignore", UserWarning)
+        coeffs = compute_oracle_coefficients(
+            mu=[0.08, 0.06], sigma=_SIGMA_ILL, r=0.05, horizon=1.0, gamma_embed=1.5,
+        )
+    assert torch.isfinite(coeffs.sensitivity).all()
+    assert torch.isfinite(coeffs.B).all()
+
+
+def test_singular_still_raises_not_warns():
+    """Outright singular covariance still raises ValueError, not a mere warning."""
+    with pytest.raises(ValueError, match="singular"):
+        compute_oracle_coefficients(
+            mu=[0.1, 0.08],
+            sigma=[[0.2, 0.2], [0.2, 0.2]],  # rank-1 → singular
+            r=0.05,
+            horizon=1.0,
+            gamma_embed=1.0,
+        )
+
+
+# ---------------------------------------------------------------------------
 # oracle_action — sanity and shape checks
 # ---------------------------------------------------------------------------
 

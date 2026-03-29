@@ -1,0 +1,25 @@
+# Brainstorm Dialogue
+
+Purpose:
+- use this file for idea generation, roadmap discussion, scope shaping, and design-direction notes
+- do not use this file to approve code, request implementation, or review completed patches
+
+Rules:
+- brainstorming here should not directly trigger code changes
+- outcomes from this dialogue should be one of:
+  - a new item in `shared_agent_files/claude_code_todo.md`
+  - a design or direction update in `codex_files/repo_design_memory.md`
+  - a deferred note in `codex_files/non_blocking_followups.md`
+  - a project-memory update in `.claude/memory/project_portfolio_qlearning.md`
+- if an idea becomes implementation-ready, move it out of this file and into the normal tasking/review flow in `shared_agent_files/dialogue.txt`
+
+Suggested entry format:
+- `[Author | timestamp]`
+- `Topic: ...`
+- `Why it matters: ...`
+- `Candidate directions: ...`
+- `Recommended next documentation target: ...`
+- `Status: brainstorm only`
+
+Current status:
+- ready for brainstorming entries

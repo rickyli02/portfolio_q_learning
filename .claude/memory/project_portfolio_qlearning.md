@@ -46,7 +46,8 @@ Last updated: 2026-03-29
 - Phase 16B trainer/demo pipeline stress tests across broader GBM parameter regimes: approved
 - Phase 16C trainer-to-backtest bridge and tiny comparison demo: approved
 - Phase 16D smoke-level hardening for both demo entrypoints: approved
-- Phase 17A numerical-safety diagnostics foundation: pending review
+- Phase 17A numerical-safety diagnostics foundation: approved
+- Phase 17B oracle conditioning-warning boundary: pending review
 
 ## Current verification snapshot
 
@@ -66,7 +67,7 @@ Last updated: 2026-03-29
   - Huang-Jia-Zhou (2025) CTRL baseline next
   - practical online improvements only after baseline stability
 - Current immediate focus:
-  - Phase 17A is pending review: warn_if_unstable utility, validate_parameters on base classes, diagnostics wired into GaussianActor/QuadraticCritic/oracle_mv, ctrl_train_step fail-fast added
+  - Phase 17B pending review: warn_if_ill_conditioned helper + oracle conditioning warning before linalg.solve
 
 ## Stable decisions
 

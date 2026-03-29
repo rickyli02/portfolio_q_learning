@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from src.utils.numerics import warn_if_ill_conditioned
+
 if TYPE_CHECKING:
     from src.envs.gbm_env import GBMPortfolioEnv
 
@@ -123,6 +125,11 @@ def compute_oracle_coefficients(
     # Excess-return vector B = b − r·1, shape (n_risky,)
     # env.mu is b (price SDE drift), so no Ito correction needed.
     B = mu_t - r
+
+    # Warn before the solve if the covariance is ill-conditioned but still
+    # potentially solvable.  The solve proceeds regardless; the warning is a
+    # diagnostic only and does not alter the computed coefficients.
+    warn_if_ill_conditioned(cov, "oracle covariance σσᵀ")
 
     # Sensitivity vector [σσᵀ]⁻¹ B via a linear solve (more numerically stable
     # than computing an explicit inverse, especially for ill-conditioned

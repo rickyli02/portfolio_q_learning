@@ -114,6 +114,42 @@ def test_custom_threshold_no_warning_below():
         warn_if_unstable(t, "t", threshold=100.0)
 
 
+def test_min_positive_warns_on_zero():
+    """Exact zero triggers near-zero / underflow warning when min_positive set."""
+    t = torch.tensor([0.0])
+    with pytest.warns(UserWarning, match="near-zero or underflow"):
+        warn_if_unstable(t, "t", min_positive=1e-38)
+
+
+def test_min_positive_warns_on_very_small_positive():
+    """Value below min_positive threshold triggers warning."""
+    t = torch.tensor([1e-40])
+    with pytest.warns(UserWarning, match="near-zero or underflow"):
+        warn_if_unstable(t, "t", min_positive=1e-38)
+
+
+def test_min_positive_no_warning_for_normal_small_value():
+    """Ordinary small positive value above min_positive threshold does not warn."""
+    t = torch.tensor([1e-6])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        warn_if_unstable(t, "t", min_positive=1e-38)
+
+
+def test_min_positive_message_contains_name():
+    t = torch.tensor([0.0])
+    with pytest.warns(UserWarning, match="variance_level"):
+        warn_if_unstable(t, "variance_level", min_positive=1e-38)
+
+
+def test_min_positive_not_triggered_when_none():
+    """min_positive=None (default) must not warn on zero."""
+    t = torch.tensor([0.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        warn_if_unstable(t, "t")  # default min_positive=None
+
+
 # ===========================================================================
 # ActorBase / CriticBase validate_parameters()
 # ===========================================================================
@@ -229,6 +265,67 @@ def test_gaussian_actor_variance_warns_when_phi3_very_large():
 
     with pytest.warns(UserWarning, match="GaussianActor.variance"):
         _ = actor.variance(0.0)
+
+
+def test_gaussian_actor_phi2_warns_on_underflow_to_zero():
+    """Extreme positive log_phi2_inv → phi2 underflows to 0 in float32 → warns."""
+    from src.models.gaussian_actor import GaussianActor
+
+    actor = GaussianActor(n_risky=1, horizon=1.0)
+    # float32: exp(-1000) = 0.0 (underflow)
+    with torch.no_grad():
+        actor.log_phi2_inv.fill_(1000.0)
+
+    with pytest.warns(UserWarning, match="near-zero or underflow"):
+        _ = actor.phi2
+
+
+def test_gaussian_actor_variance_warns_on_underflow():
+    """When phi2 underflows to zero, variance also underflows → warns."""
+    from src.models.gaussian_actor import GaussianActor
+
+    actor = GaussianActor(n_risky=1, horizon=1.0)
+    with torch.no_grad():
+        actor.log_phi2_inv.fill_(1000.0)  # phi2 = 0 in float32
+
+    # variance = phi2 * exp(phi3 * (T - t)) = 0 * finite = 0 → underflow warning
+    with pytest.warns(UserWarning):
+        _ = actor.variance(0.0)
+
+
+def test_gaussian_actor_phi2_underflow_float32_vs_float64():
+    """Documents dtype sensitivity: float32 underflows to 0 well before float64.
+
+    float32 loses all precision (rounds to 0.0) at exp(-104) or below.
+    float64 exp(-104) ≈ 1.4e-46 which is still positive.  This test uses
+    log_phi2_inv=200 as a value that is definitively zero in float32 but
+    representable (tiny) in float64, confirming the regime is dtype-sensitive.
+    """
+    # float32: exp(-200) is well below the subnormal floor → rounds to 0
+    val_f32 = torch.exp(-torch.tensor(200.0, dtype=torch.float32))
+    assert val_f32.item() == 0.0, f"float32 exp(-200) expected 0.0, got {val_f32.item()}"
+
+    # float64: exp(-200) ≈ 1.4e-87, still strictly positive
+    val_f64 = torch.exp(-torch.tensor(200.0, dtype=torch.float64))
+    assert val_f64.item() > 0.0, f"float64 exp(-200) expected > 0, got {val_f64.item()}"
+
+
+def test_gaussian_actor_entropy_warns_before_log_var_on_underflow():
+    """Underflow warning is emitted on the path through entropy() before log(var).
+
+    Regression check: with log_phi2_inv=1000.0, phi2 and variance() both underflow
+    to 0.0 in float32.  At least one underflow warning must be emitted when
+    entropy(0.0) is called, proving the diagnostic fires before entropy() silently
+    returns -inf from log(0).
+    """
+    from src.models.gaussian_actor import GaussianActor
+
+    actor = GaussianActor(n_risky=1, horizon=1.0)
+    with torch.no_grad():
+        actor.log_phi2_inv.fill_(1000.0)
+
+    with pytest.warns(UserWarning, match="near-zero or underflow"):
+        _ = actor.entropy(0.0)
 
 
 def test_gaussian_actor_no_warning_for_normal_params():

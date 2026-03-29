@@ -119,7 +119,7 @@ class GaussianActor(ActorBase):
     def phi2(self) -> torch.Tensor:
         """Variance level φ₂ > 0, scalar."""
         val = torch.exp(-self.log_phi2_inv)
-        warn_if_unstable(val, "GaussianActor.phi2")
+        warn_if_unstable(val, "GaussianActor.phi2", min_positive=1e-38)
         return val
 
     def variance(self, t: float | torch.Tensor) -> torch.Tensor:
@@ -137,7 +137,7 @@ class GaussianActor(ActorBase):
         """
         t_t = torch.as_tensor(t, dtype=self.phi3.dtype, device=self.phi3.device)
         val = self.phi2 * torch.exp(self.phi3 * (self.horizon - t_t))
-        warn_if_unstable(val, "GaussianActor.variance")
+        warn_if_unstable(val, "GaussianActor.variance", min_positive=1e-38)
         return val
 
     # ------------------------------------------------------------------
