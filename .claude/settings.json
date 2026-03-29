@@ -16,12 +16,12 @@
       "Bash(git checkout:*)",
       "Bash(git diff:*)",
       "Bash(git branch:*)",
-      "Bash(source .venv/bin/activate)", // Allows activating virtual environments
-      "Bash(python3.11 -m venv .venv)",  // Creates virtual environments
-      "Bash(.venv/bin/pip install -q -r requirements.txt)", // Installs dependencies
       "Bash(.venv/bin/pytest *.py -q)", // Runs unit tests
     ],
     "ask": [
+      "Bash(source .venv/bin/activate)", // Allows activating virtual environments
+      "Bash(python3.11 -m venv .venv)",  // Creates virtual environments
+      "Bash(.venv/bin/pip install -q -r requirements.txt)", // Installs dependencies
       "Bash(wget *)",            // Pauses file downloads
       "Bash(find *)",            // Pauses broad file searching
       "Bash(git push *)",

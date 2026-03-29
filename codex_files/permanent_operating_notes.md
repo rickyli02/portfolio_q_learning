@@ -15,6 +15,7 @@ Owner: Codex
 - Changes requested for user-owned config files should be routed through `shared_agent_files/dialogue.txt`.
 - Claude may request edits to `.claude/CLAUDE.md` or other files under `.claude/`, but those edits should be reviewed by the user and Codex.
 - All scripts and tests should be run in the project `.venv`.
+- Always ask for user permission when editing files in `.venv`.
 - For venv commands, either `python` or `python3` is acceptable; use whichever interpreter path actually exists in the local `.venv`.
 - Prefer `.venv/.../python -m ...` style invocation over assuming standalone `pytest` or `pip` entrypoint scripts always exist.
 - Prefer checked-in helper scripts for repeated mechanical tasks.
