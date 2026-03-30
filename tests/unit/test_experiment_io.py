@@ -269,6 +269,33 @@ def test_script_stdout_mentions_artifacts_when_output_dir_given():
 
 
 # ---------------------------------------------------------------------------
+# Invalid output destination — failure path
+# ---------------------------------------------------------------------------
+
+
+def test_script_returns_nonzero_for_invalid_output_dir():
+    """Script returns nonzero when output_dir cannot be created (parent is a file)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # Create a regular file at the path that output_dir would use as a parent.
+        # mkdir(..., parents=True) will raise OSError when a path component is a file.
+        blocker = Path(tmp) / "blocker"
+        blocker.write_text("not a directory")
+        invalid_out = blocker / "run_out"  # parent is a file, not a dir
+        rc, _, _ = _run([str(_TINY_CFG), str(invalid_out)])
+    assert rc != 0
+
+
+def test_script_stderr_describes_invalid_output_dir_error():
+    """stderr contains a clear error message when output_dir creation fails."""
+    with tempfile.TemporaryDirectory() as tmp:
+        blocker = Path(tmp) / "blocker"
+        blocker.write_text("not a directory")
+        invalid_out = blocker / "run_out"
+        _, _, err = _run([str(_TINY_CFG), str(invalid_out)])
+    assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
 # Public export tests
 # ---------------------------------------------------------------------------
 

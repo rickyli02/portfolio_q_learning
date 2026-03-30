@@ -106,8 +106,8 @@ As of 2026-03-30:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 20C minimal run-artifact persistence seam
-  - objective: add the smallest useful saved-output layer for the approved config-backed runner/script path by persisting the compact scalar report and the resolved config
+  - Phase 21B minimal saved-report plotting consumer
+  - objective: add one very small plotting consumer over saved `report.json` + `resolved_config.yaml` artifacts before any broader plotting/reporting infrastructure
 - The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -122,6 +122,8 @@ As of 2026-03-30:
     - add an end-to-end experiment/evaluation runner
     - add a YAML/script consumer over that runner
     - add minimal run-artifact persistence over the approved runner/script path
+    - add a saved-artifact inspection consumer over that persistence seam
+    - add a minimal saved-artifact plotting consumer
     - only then consider additional reporting/plotting consumers
   - Follow-through after Phase 16A / 16B:
   - the first backtest consumer now exists under `src/backtest/`
@@ -137,7 +139,9 @@ As of 2026-03-30:
   - the current approved consumer chain now includes:
     - config-backed experiment runner under `src/backtest/experiment_runner.py`
     - YAML-driven manual script consumer under `scripts/run_config_experiment.py`
-    - the current assigned consumer task is to add the minimal run-artifact persistence seam over that path
+    - minimal saved-artifact persistence over that path
+    - saved-artifact inspection consumer under `scripts/run_inspect_artifacts.py`
+  - the current assigned consumer task is to add a minimal saved-report plotting consumer over the approved artifact seam
 - Reference-gap analysis from the 2026-03-29 documentation review:
   - Tier 1 theorem/correctness gaps still missing:
     - parameter projection sets for actor/critic parameters (`K_{θ,n}`, `K_{1,n}`, `K_{2,n}`)
@@ -153,7 +157,9 @@ As of 2026-03-30:
     - replay buffer and synthetic data modules exist but remain minimal baseline utilities rather than rich experiment pipelines
     - experiment/config-dispatch runner foundation now exists under `src/backtest/experiment_runner.py`
     - the first YAML/script consumer now exists under `scripts/run_config_experiment.py`
-    - minimal run-artifact persistence is still missing
+    - minimal run-artifact persistence now exists under `src/backtest/experiment_io.py`
+    - a read-side saved-artifact consumer now exists under `scripts/run_inspect_artifacts.py`
+    - plotting over saved artifacts is still missing
     - plotting/logging infrastructure remains absent or stub-level
   - Tier 4 research extensions remain design-stage only:
     - richer synthetic environments
@@ -164,6 +170,10 @@ As of 2026-03-30:
 - Pending follow-up TODO items identified by review and brainstorming and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
+  - after most of the main implementation is complete, create reference notebooks that teach users how to use:
+    - the core model path
+    - the experiment runner and YAML config flow
+    - the saved-artifact inspection / reporting tools
   - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
   - add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state beyond simple SGD
   - define the staged alternative synthetic-data stress ladder:

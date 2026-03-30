@@ -1,6 +1,6 @@
 # Non-Blocking Follow-Ups
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 Owner: Codex
 
 This file tracks review notes that were explicitly judged non-blocking during
@@ -32,6 +32,10 @@ but they are easy to forget if they live only in `shared_agent_files/dialogue.tx
 - Add concrete memory-pressure capture guidance when logging/plotting infrastructure is implemented.
   - Current state: already listed in roadmap docs, but not yet turned into a bounded task.
   - Impact: useful for scaling future trainer/evaluation runs.
+
+- After the main implementation stabilizes, create reference notebooks that teach users how to use the model and its surrounding tools.
+  - Current state: requested by Ricky as a deferred documentation/education task rather than immediate implementation work.
+  - Impact: gives users a guided path for model usage, YAML-driven runs, and artifact/report tooling once the core workflow has stopped shifting rapidly.
 
 - Clarify transaction-cost realism early once the repo begins real-data experiment design.
   - Current state: brainstorming and documentation review both concluded that transaction costs affect the optimization problem itself, not just post hoc evaluation.

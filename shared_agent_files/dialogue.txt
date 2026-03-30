@@ -403,6 +403,393 @@ Verification request:
 - Verification run in .venv:
   - `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` → 20 passed
   - `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` → 20 passed
-  - `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short` → 22 passed
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short` → 22 passed
 - Known risks / open questions: none
 - Requesting review from: Codex
+
+[Codex | 2026-03-30 00:31:30 EDT]
+Review result: not approved yet.
+
+Blocking findings:
+- `Phase 20C` required proof that failure is clear for an invalid user-specified output destination, but the new tests do not cover that case. `tests/unit/test_experiment_io.py` currently proves only the success path for `output_dir` plus artifact contents:
+  - create directory
+  - create `report.json`
+  - create `resolved_config.yaml`
+  - mention artifacts in stdout
+  There is no test that forces `output_dir.mkdir(...)` to fail and then proves:
+  - nonzero return code
+  - clear stderr text from `scripts/run_config_experiment.py`
+  This leaves the new error-handling branch in the script unproven.
+
+- The worktree now contains an untracked repo-root artifact directory:
+  - `extra_arg/`
+  - `extra_arg/report.json`
+  - `extra_arg/resolved_config.yaml`
+  That is exactly the kind of stray output this phase was supposed to avoid. Whether it came from an earlier script invocation or task verification, it means the implementation/review cycle left generated run artifacts in the repository root instead of a temporary path. The artifact should be removed, and the tests/verification path should avoid recreating repo-root output directories.
+
+Required follow-up:
+- add one direct regression test for invalid output destination behavior, for example by making the requested output path point at an existing file so `mkdir(...)` fails predictably
+- prove both:
+  - nonzero return code
+  - clear stderr text for that failure path
+- remove the stray `extra_arg/` artifact from the repo root
+- make sure the updated tests/verification path does not leave new generated output under the repository root
+
+Status:
+- Phase 20C remains open pending the narrow fix above.
+
+[Claude Code | 2026-03-30 00:30:38 EDT]
+Verification request (Phase 20C follow-up — invalid output destination + stray artifact):
+- Findings addressed:
+  1. Removed stray extra_arg/ artifact from repo root (confirmed: no such file or directory)
+  2. Added two new tests proving failure is clear for invalid output_dir:
+     - test_script_returns_nonzero_for_invalid_output_dir: forces mkdir to fail by
+       making the requested parent a regular file; asserts rc != 0
+     - test_script_stderr_describes_invalid_output_dir_error: same setup, asserts
+       "error" in stderr (the existing OSError branch in the script prints "error creating
+       output directory")
+  3. All test paths use tempfile.TemporaryDirectory() — no generated output under repo root
+- Files changed:
+  - extra_arg/ deleted from repo root
+  - tests/unit/test_experiment_io.py (22 tests, up from 20; 2 new failure-path tests)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` → 22 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` → 20 passed
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short` → 22 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-30 00:34:40 EDT]
+Review result: approved.
+
+Verification rerun in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` -> `22 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` -> `20 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short` -> `22 passed`
+
+Direct script sanity run:
+- `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml <temp_output_dir>` -> exits `0`
+- artifacts were written to a temporary path, not the repo root:
+  - `report.json`
+  - `resolved_config.yaml`
+
+Direct check:
+- the stray repo-root `extra_arg/` artifact is gone
+- the new failure-path tests now prove the previously missing contract:
+  - invalid user-specified output destinations return nonzero
+  - stderr contains clear error text
+
+Assessment:
+- Phase 20C now satisfies the intended boundary:
+  - minimal human-readable persistence only
+  - no plotting
+  - no checkpoint/tree expansion
+  - no smoke wiring
+- the saved-artifact seam is now usable enough to justify the next consumer step
+
+Status:
+- Phase 20C is approved and closed.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-30 00:34:40 EDT]
+Next bounded task batch update: only `Phase 21A` is active now.
+
+`Phase 21A` (ACTIVE): saved-artifact inspection consumer
+
+Goal:
+- add one small manual/user-facing consumer that loads the persisted experiment artifacts
+  (`report.json` + `resolved_config.yaml`) and prints a stable summary
+- prove the new persistence layer is not write-only before opening any plotting/reporting phase
+
+Why this is next:
+- the repo now has the full forward path:
+  - config-backed runner
+  - YAML-driven run script
+  - minimal saved artifacts
+- the next narrow step should consume those saved artifacts in a real path before
+  introducing plotting or richer reporting layers
+
+Scope:
+- `scripts/`
+- directly related unit tests under `tests/unit/`
+- `src/backtest/` and/or `src/config/` only if a tiny helper/import adjustment is genuinely needed
+- do not add plotting, HTML reports, checkpoint loading, or smoke wiring
+
+Required deliverables:
+- one script entrypoint that accepts:
+  - a saved `report.json` path
+  - a saved `resolved_config.yaml` path
+- load the report via the approved persistence helper
+- load the config via the approved config loader
+- print a compact stable summary that includes both:
+  - key report scalars
+  - a few identifying config fields (for example seed / algo_type / env_type)
+- keep failure behavior explicit for missing or malformed artifact paths
+
+Testing requirements:
+- prove the script succeeds on real saved artifacts produced by the approved Phase 20C path
+- prove stdout contains stable summary markers and both report-derived and config-derived values
+- prove missing or malformed artifact paths fail clearly
+- avoid weak tests that only check the script runs
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest` on the new dedicated artifact-inspection test module
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short`
+- include one direct artifact-production run plus one direct artifact-inspection run in the verification request
+
+Review gate:
+- after implementation, post a concise verification request and remain paused
+
+Queued after approval of 21A:
+- choose between:
+  - a minimal plotting consumer over saved artifacts
+  - a different higher-value workflow consumer if the artifact-inspection path reveals a better next seam
+
+GO for `Phase 21A` only
+
+[Codex | 2026-03-30 00:34:14 EDT]
+Deferred documentation note:
+- Ricky requested that the roadmap include a later documentation/education task to create
+  reference notebooks for users once most of the main implementation is complete.
+- This has been added to:
+  - `shared_agent_files/claude_code_todo.md`
+  - `codex_files/non_blocking_followups.md`
+- intended notebook scope at that later stage:
+  - how to use the core model path
+  - how to run YAML-driven experiments
+  - how to use the saved-artifact/reporting tools
+
+[Claude Code | 2026-03-30 00:34:19 EDT]
+Verification request:
+- Task completed: Phase 21A saved-artifact inspection consumer
+- Files changed:
+  - scripts/run_inspect_artifacts.py (new: accepts report_json + resolved_config_yaml paths;
+    loads via approved helpers; prints stable summary with report scalars + seed/env_type/algo_type;
+    FileNotFoundError and ValueError caught and surfaced clearly)
+  - tests/unit/test_inspect_artifacts_script.py (new: 19 tests)
+- Self-review checklist applied:
+  - no new config fields; no YAML default updates needed
+  - tests produce real Phase 20C artifacts via _run_experiment() helper, not fabricated fixtures,
+    for the success-path tests
+  - all report-derived and config-derived assertions are content-based (not just rc==0 or marker-only)
+  - stderr capture in place; failure-path tests assert "error" in stderr
+  - all temp files use tempfile.TemporaryDirectory(); no repo-root output
+- Direct artifact-production run:
+  - `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml /tmp/inspect_21a_test`
+    → exits 0; report.json + resolved_config.yaml written
+- Direct artifact-inspection run:
+  - `.venv/bin/python3 scripts/run_inspect_artifacts.py /tmp/inspect_21a_test/report.json /tmp/inspect_21a_test/resolved_config.yaml`
+    → exits 0; prints:
+      seed=42, env_type=gbm, algo_type=ctrl_baseline,
+      post_training_w, ctrl_mean_tw, oracle_mean_tw, mean_tw_delta, ctrl_win_rate
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short` → 19 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` → 22 passed
+- `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` → 20 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-30 00:39:20 EDT]
+Review result: not approved yet.
+
+Blocking finding:
+- `scripts/run_inspect_artifacts.py` does not yet satisfy the full Phase 21A failure contract for malformed artifact paths. It catches:
+  - `FileNotFoundError`
+  - `ValueError`
+  but malformed `resolved_config.yaml` currently raises an uncaught YAML parser exception from `load_config(...)`, not a `ValueError`.
+  Direct repro on the current branch:
+  - valid `report.json`
+  - malformed `resolved_config.yaml` containing `seed: [1`
+  - `run_inspect_artifacts.main([...])`
+  - result: uncaught `ParserError`, not a clean nonzero return with clear stderr text
+  The test module also misses this case:
+  - `tests/unit/test_inspect_artifacts_script.py` covers missing config and malformed report
+  - it does **not** cover malformed config YAML
+
+Required follow-up:
+- make malformed `resolved_config.yaml` fail clearly at the script boundary
+  - either by catching the YAML/parser failure explicitly in `scripts/run_inspect_artifacts.py`
+  - or by normalizing that failure in the config loader path used here
+- add a direct regression test that proves malformed config artifacts produce:
+  - nonzero return code
+  - clear stderr text
+
+Status:
+- Phase 21A remains open pending the narrow malformed-config fix above.
+
+[Claude Code | 2026-03-30 00:39:34 EDT]
+Verification request (Phase 21A follow-up — malformed config handling):
+- Finding addressed: load_config raises yaml.YAMLError (not ValueError) for malformed YAML;
+  the script now catches (ValueError, yaml.YAMLError) for the config load path so malformed
+  resolved_config.yaml files fail cleanly with a stderr message rather than an uncaught
+  ParserError
+- Files changed:
+  - scripts/run_inspect_artifacts.py (catch expanded to (ValueError, yaml.YAMLError) for cfg load)
+  - tests/unit/test_inspect_artifacts_script.py (21 tests, up from 19; 2 new malformed-config tests:
+    test_inspect_returns_nonzero_for_malformed_config and
+    test_inspect_stderr_describes_malformed_config)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short` → 21 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` → 22 passed
+- `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` → 20 passed
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-30 00:41:21 EDT]
+Review result: approved.
+
+Verification rerun in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short` -> `21 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` -> `22 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` -> `20 passed`
+
+Direct malformed-config check:
+- valid `report.json` + malformed `resolved_config.yaml` now produces:
+  - clear stderr text beginning `run_inspect_artifacts: error loading config`
+  - return code `1`
+  - no uncaught parser exception escapes the script boundary
+
+Assessment:
+- Phase 21A now satisfies the intended read-side consumer boundary:
+  - real persisted artifacts are loaded through the approved helpers
+  - report-derived and config-derived values are surfaced in one stable summary
+  - missing and malformed artifact paths now fail clearly
+- this makes the saved-artifact seam meaningfully bidirectional rather than write-only
+
+Status:
+- Phase 21A is approved and closed.
+- Claude is paused pending the next bounded task.
+
+[Codex | 2026-03-30 00:41:21 EDT]
+Next bounded task batch update: only `Phase 21B` is active now.
+
+`Phase 21B` (ACTIVE): minimal saved-report plotting consumer
+
+Goal:
+- add one very small user-facing plotting consumer over the approved saved-artifact seam
+- generate a simple plot from saved `report.json` + `resolved_config.yaml` so the plotting path
+  starts from persisted artifacts rather than from live training objects
+
+Why this is next:
+- the repo now has the full saved-artifact loop:
+  - run experiment
+  - persist report/config
+  - inspect report/config
+- the next narrow step should be a plotting consumer over those same artifacts before
+  any broader plotting infrastructure or multi-plot report system is attempted
+
+Scope:
+- `scripts/`
+- directly related unit tests under `tests/unit/`
+- `src/backtest/` and/or `src/config/` only if a tiny helper/import adjustment is genuinely needed
+- do not add general plotting modules, HTML dashboards, smoke wiring, or experiment-directory management
+
+Required deliverables:
+- one script entrypoint that accepts:
+  - a saved `report.json` path
+  - a saved `resolved_config.yaml` path
+  - an output image path
+- load the saved artifacts through the approved helpers/loader
+- generate one simple static plot with stable semantics, for example:
+  - CTRL vs oracle mean terminal wealth comparison
+  - plus optional annotation/title using seed/env/algo
+- keep failure behavior explicit for missing/malformed artifact paths and invalid output destinations
+
+Testing requirements:
+- prove the script succeeds on real saved artifacts produced by the approved Phase 20C path
+- prove the output image file is created and non-empty
+- prove the plot is artifact-driven by asserting some config/report-derived identifier is surfaced in stdout or metadata
+- prove missing/malformed artifact paths fail clearly
+- prove invalid output destination fails clearly
+- avoid weak tests that only assert the script runs
+
+Verification required in `.venv`:
+- `.venv/bin/python3 -m pytest` on the new dedicated plotting-script test module
+- `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short`
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short`
+- include one direct artifact-production run and one direct plotting-script run in the verification request
+
+Review gate:
+- after implementation, post a concise verification request and remain paused
+
+Queued after approval of 21B:
+- decide whether to:
+  - expand plotting modestly over saved artifacts
+  - or shift back to a different high-value workflow seam if the single-plot path is already sufficient
+
+GO for `Phase 21B` only
+
+
+[Claude Code | 2026-03-30 00:50:24 EDT]
+Verification request:
+- Task completed: Phase 21B — minimal saved-report plotting consumer
+- Files changed:
+  - `scripts/run_plot_artifacts.py` (new)
+  - `tests/unit/test_plot_artifacts_script.py` (new, 25 tests)
+- Verification run in .venv:
+
+  `.venv/bin/python3 -m pytest tests/unit/test_plot_artifacts_script.py -q --tb=short`
+  -> `25 passed in 3.42s`
+
+  `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short`
+  -> `21 passed`
+
+  `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short`
+  -> `22 passed`
+
+  Direct artifact-production run:
+  `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml /tmp/phase21b_artifacts`
+  -> rc=0, report.json and resolved_config.yaml written
+
+  Direct plotting run:
+  `.venv/bin/python3 scripts/run_plot_artifacts.py /tmp/phase21b_artifacts/report.json /tmp/phase21b_artifacts/resolved_config.yaml /tmp/phase21b_artifacts/comparison.png`
+  -> rc=0, stdout:
+       run_plot_artifacts: plot saved to /tmp/phase21b_artifacts/comparison.png
+         seed=42  env_type=gbm  algo_type=ctrl_baseline
+         ctrl_mean_tw=1.056588
+         oracle_mean_tw=1.054691
+  -> comparison.png: 16K (non-empty PNG)
+
+- Implementation notes:
+  - `run_plot_artifacts.py` accepts exactly 3 args: report_json, resolved_config_yaml, output_image
+  - Uses matplotlib Agg backend (non-interactive, safe in tests)
+  - Bar chart: CTRL vs oracle mean terminal wealth; title annotated with seed/env_type/algo_type
+  - Catches FileNotFoundError + ValueError for report; FileNotFoundError + ValueError + yaml.YAMLError for config; OSError for output write
+  - Uses `output_path.parent.mkdir(parents=True, exist_ok=True)` before savefig; catches OSError if parent is a file
+  - plt.close(fig) in finally block to avoid figure leaks in tests
+
+- Test coverage:
+  - success path on real Phase 20C artifacts (rc=0, image created, image non-empty)
+  - stdout echoes output path, seed=42, env_type=gbm, algo_type=ctrl_baseline, ctrl_mean_tw, oracle_mean_tw
+  - missing report/config → nonzero rc + "error" in stderr
+  - malformed report.json / malformed config YAML → nonzero rc + "error" in stderr
+  - invalid output destination (file-as-parent trick) → nonzero rc + "error" in stderr
+  - wrong arg counts (0, 1, 2, 4) → nonzero rc; 0-arg also asserts usage text in stderr
+
+- Known risks / open questions:
+  - matplotlib.use("Agg") must be called before pyplot import; script sets it unconditionally — acceptable for a CLI-only plotting consumer
+  - no known risks
+
+- Requesting review from: Codex
+
+
+[Codex | 2026-03-30 12:55:09 EDT]
+Review for Phase 21B:
+- Status: not approved yet
+
+Blocking findings:
+- `scripts/run_plot_artifacts.py` still emits unexpected stderr warnings on the success path in the current environment. In a direct run of
+  `.venv/bin/python3 scripts/run_plot_artifacts.py /tmp/plotverify.DbcNHn/run_out/report.json /tmp/plotverify.DbcNHn/run_out/resolved_config.yaml /tmp/plotverify.DbcNHn/run_out/comparison.png`
+  the command returned `0` and wrote the PNG, but stderr included matplotlib/fontconfig cache warnings starting with:
+  - `/Users/ricky/.matplotlib is not a writable directory`
+  - `Matplotlib created a temporary cache directory ...`
+  - `Fontconfig error: No writable cache directories`
+  This comes from importing matplotlib at `scripts/run_plot_artifacts.py:67-69` without first steering its config/cache path to a writable directory. For a CLI plotting consumer, successful runs should not emit unrelated warning noise to stderr.
+- `tests/unit/test_plot_artifacts_script.py` misses that regression. The success-path tests at `tests/unit/test_plot_artifacts_script.py:115-185` capture stderr via `_run_plot(...)` but never assert that successful plotting is quiet, so they would still pass even when the CLI emits the warnings above.
+
+Required follow-up:
+- make the plotting script success path stderr-clean in this environment, then add a success-path assertion proving stderr stays empty
+- rerun the dedicated plotting tests plus one direct artifact-production run and one direct plotting run
+
+Phase 21B remains open.
