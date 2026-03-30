@@ -92,7 +92,7 @@ def main() -> int:
     )
 
     print(
-        f"CTRL demo: running outer loop "
+        f"CTRL demo: running outer loop with stochastic behavior policy "
         f"(n_outer_iters={_N_OUTER_ITERS}, n_updates={_N_UPDATES}, seed={_BASE_SEED})"
     )
     trainer.run_outer_loop(

@@ -177,6 +177,20 @@ class AlgorithmConfig:
     """Number of evaluation episodes for the oracle policy (``algo_type='oracle'``
     only).  Ignored for learned-policy algorithms."""
 
+    oracle_gamma_embed: float = 1.0
+    """Auxiliary embedding scalar γ for the Zhou–Li (2000) oracle policy.
+
+    This is the virtual terminal wealth target in the oracle formula:
+
+        ū(t, x) = [σσᵀ]⁻¹ B · (γ · exp(−r(T−t)) − x)
+
+    **Not** the same as ``reward.target_return`` (z), which is the CTRL
+    training target.  Changing ``reward.target_return`` does NOT implicitly
+    change the oracle benchmark unless this field is also updated.
+    Meaningful values are typically close to the expected terminal wealth
+    (e.g. 1.0 for a unit-wealth experiment).
+    """
+
 
 @dataclass
 class PlottingConfig:
@@ -350,6 +364,11 @@ class ExperimentConfig:
             raise ValueError(
                 f"algo.n_oracle_episodes must be >= 1, "
                 f"got {self.algo.n_oracle_episodes}"
+            )
+        if self.algo.oracle_gamma_embed <= 0:
+            raise ValueError(
+                f"algo.oracle_gamma_embed must be > 0, "
+                f"got {self.algo.oracle_gamma_embed}"
             )
         # --- plotting ---
         _valid_formats = {"png", "pdf", "svg"}

@@ -179,6 +179,10 @@ def run_ctrl_oracle_comparison(
     No rollout logic is duplicated — CTRL uses ``eval_record_set``; oracle
     results are wrapped into the same ``CTRLEvalRecord`` shape.
 
+    CTRL evaluation chain (deterministic execution policy):
+        ``eval_record_set`` → ``eval_record`` → ``evaluate_ctrl_deterministic``
+        → ``execute_ctrl_action`` → ``actor.mean_action()``
+
     Args:
         actor:           Learned CTRL policy satisfying ``ActorBase``.
         env:             GBM portfolio environment shared by both policies.

@@ -38,6 +38,7 @@ logging:
 
 algo:
   algo_type: ctrl_baseline
+  oracle_gamma_embed: 1.0
 
 plotting:
   enabled: false

@@ -104,11 +104,15 @@ def test_load_config_smoke_yaml():
 
 
 def test_load_config_base_yaml():
-    """The checked-in base default config must load cleanly."""
+    """The checked-in base default config must load cleanly and match dataclass defaults."""
     base_path = Path(__file__).resolve().parents[2] / "configs" / "base" / "default.yaml"
     assert base_path.exists(), f"default.yaml not found at {base_path}"
     cfg = load_config(base_path)
-    assert cfg.seed == 42
+    defaults = ExperimentConfig()
+    assert cfg.seed == defaults.seed
+    assert cfg.algo.oracle_gamma_embed == pytest.approx(defaults.algo.oracle_gamma_embed)
+    assert cfg.algo.algo_type == defaults.algo.algo_type
+    assert cfg.algo.n_oracle_episodes == defaults.algo.n_oracle_episodes
 
 
 def test_load_config_unknown_field_raises():

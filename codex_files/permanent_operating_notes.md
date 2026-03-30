@@ -1,6 +1,6 @@
 ## Codex Permanent Operating Notes
 
-Last updated: 2026-03-28
+Last updated: 2026-03-30
 Owner: Codex
 
 ### Role
@@ -26,6 +26,7 @@ Owner: Codex
 - Archived dialogue files should be named with a datetime label.
 - Start a fresh `shared_agent_files/dialogue.txt` with a short summary of the most recent decisions and open issues.
 - Dialogue entries should include full timestamps and should be appended at the bottom of the file.
+- When reviewing Claude output or assigning follow-up work, always record the outcome in `shared_agent_files/dialogue.txt`; do not leave the authoritative review/result only in chat.
 - Generic guidance from Ricky in dialogue should be copied into persistent Codex notes.
 - Claude timestamp generation should be mechanical via `scripts/get_dialogue_timestamp.sh`.
 - Claude long-form reasoning should be saved under `claude_files/` via `scripts/save_claude_reasoning.py`.
@@ -39,6 +40,11 @@ Owner: Codex
 - If a task adds a new dedicated unit-test file, require Claude's verification request to list that file's direct pytest command explicitly, not just the broader `tests/unit` command.
 - If the repo has already completed several consecutive infrastructure-only phases in one layer, require the next task-assignment to justify why another extension is needed instead of moving to a consumer workflow.
 - If a task defines the target workflow in terms of a specific public or stateful API boundary, require the tests to drive that boundary directly rather than substituting a lower-level helper.
+- Before Claude posts a verification request on a bounded phase, apply a short self-review checklist aimed at reducing avoidable second review rounds:
+  - confirm the documented supported surface is actually enforced in code rather than silently ignored
+  - if a public config/dataclass field was added or changed, sync checked-in YAML defaults/examples and strengthen tests to prove alignment
+  - if the phase adds a script/CLI path, test both stdout and stderr as needed and assert config-derived values or error/usage text, not only return codes
+  - prefer one strong behavior-proof test over multiple weak `rc==0` or marker-only tests when the task is about correctness rather than formatting
 
 ### Generic Stop Conditions For Claude
 
@@ -71,3 +77,5 @@ Owner: Codex
 - Avoid overextending infrastructure layers without a consumer.
 - After a foundation layer is clearly complete enough to use, bias subsequent tasking toward consuming it in a real workflow before adding more wrappers or persistence helpers around the same layer.
 - When reviewing consumer-workflow tasks, check that the claimed workflow surface is the one actually under test; passing tests on a lower-level helper are not enough if the task named a higher-level shell.
+- Keep correctness standards high, but reduce process latency on simpler phases by using the pre-verification self-review checklist above before handing work back for review.
+- Watch test-count creep: periodically consolidate low-value formatting/boilerplate assertions when they no longer add distinct regression protection.

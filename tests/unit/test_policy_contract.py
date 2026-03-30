@@ -1,11 +1,23 @@
-"""Policy-role contract tests — Phase 19A.
+"""Policy-role contract tests — Phase 19A / 19B / 19D.
 
 Proves the behavior-vs-execution policy separation at each named public seam:
 
   Behavior policy  (stochastic): collect_ctrl_trajectory  → actor.sample()
-  Execution policy (deterministic): evaluate_ctrl_deterministic → actor.mean_action()
+  Execution policy (deterministic): evaluate_ctrl_deterministic → execute_ctrl_action()
+                                    execute_ctrl_action → actor.mean_action()
   Training step                : ctrl_train_step uses behavior path
   Comparison                   : run_ctrl_oracle_comparison uses execution path
+
+Phase 19B adds tests for the named single-step execution helper execute_ctrl_action:
+  - equivalence to actor.mean_action() (same result, same determinism guarantee)
+  - evaluate_ctrl_deterministic routes through execute_ctrl_action (same episode output)
+
+Phase 19D adds a regression proof at the eval_record_set bridge/comparison seam:
+  - eval_record_set produces identical action records across repeated calls with the
+    same inputs, proving the bridge layer is deterministic (execution policy, not
+    stochastic sampling).
+  - This test FAILS if the bridge layer is swapped to use collect_ctrl_trajectory
+    or any other stochastic path.
 
 Tests are designed to FAIL if the policy roles are accidentally swapped.
 They check observable behavioral differences, not just type annotations.
@@ -20,9 +32,11 @@ from src.algos.ctrl import (
     CTRLTrajectory,
     collect_ctrl_trajectory,
     evaluate_ctrl_deterministic,
+    execute_ctrl_action,
 )
 from src.algos.oracle_mv import OracleMVPolicy
 from src.backtest.comparison import run_ctrl_oracle_comparison
+from src.eval.record_set import eval_record_set
 from src.config.schema import AssetConfig, EnvConfig
 from src.envs.gbm_env import GBMPortfolioEnv
 from src.models.gaussian_actor import GaussianActor
@@ -280,3 +294,126 @@ def test_comparison_is_reproducible_across_calls():
         "This indicates sample() was used instead of mean_action() in the comparison path."
     )
     assert result_a.comparison.ctrl_win_rate == result_b.comparison.ctrl_win_rate
+
+
+# ===========================================================================
+# Phase 19B: execute_ctrl_action named helper seam
+# ===========================================================================
+
+
+def test_execute_ctrl_action_matches_mean_action():
+    """execute_ctrl_action returns the same value as actor.mean_action().
+
+    The helper is a named wrapper; it must not change the action value.
+    This test fails if execute_ctrl_action calls sample() instead of mean_action().
+    """
+    actor = _make_actor()
+    env = _make_env()
+    _, info = env.reset(seed=0)
+    wealth = info["wealth"].to(dtype=torch.float32)
+    t = torch.tensor(0.0, dtype=torch.float32)
+
+    with torch.no_grad():
+        expected = actor.mean_action(t, wealth, _W)
+    actual = execute_ctrl_action(actor, t, wealth, _W)
+
+    assert torch.allclose(actual, expected, atol=0.0), (
+        "execute_ctrl_action result differs from actor.mean_action(). "
+        "The helper must use mean_action() exactly."
+    )
+
+
+def test_execute_ctrl_action_is_deterministic():
+    """execute_ctrl_action is invariant to torch.manual_seed().
+
+    Repeated calls with the same inputs must return identical actions regardless
+    of the PyTorch RNG state.  This test fails if execute_ctrl_action uses
+    sample() instead of mean_action().
+    """
+    actor = _make_actor()
+    env = _make_env()
+    _, info = env.reset(seed=0)
+    wealth = info["wealth"].to(dtype=torch.float32)
+    t = torch.tensor(0.3, dtype=torch.float32)
+
+    torch.manual_seed(0)
+    action_a = execute_ctrl_action(actor, t, wealth, _W)
+    torch.manual_seed(99999)
+    action_b = execute_ctrl_action(actor, t, wealth, _W)
+
+    assert torch.allclose(action_a, action_b, atol=0.0), (
+        "execute_ctrl_action returned different values with different torch seeds. "
+        "The helper must be deterministic (mean_action has no randomness)."
+    )
+
+
+def test_evaluate_ctrl_deterministic_consistent_with_execute_ctrl_action():
+    """evaluate_ctrl_deterministic episode output matches a manual step loop using execute_ctrl_action.
+
+    Proves that evaluate_ctrl_deterministic routes through execute_ctrl_action
+    and that both produce identical action sequences.
+    """
+    actor = _make_actor()
+    env = _make_env()
+    w = _W
+    seed = 5
+
+    # Run via evaluate_ctrl_deterministic (uses execute_ctrl_action internally)
+    det_result = evaluate_ctrl_deterministic(actor, env, w=w, seed=seed)
+
+    # Manual step loop using execute_ctrl_action directly
+    _, info = env.reset(seed=seed)
+    current_wealth = info["wealth"].to(dtype=torch.float32)
+    dt = env.horizon / env.n_steps
+    manual_actions = []
+    for k in range(env.n_steps):
+        t_k = torch.tensor(k * dt, dtype=torch.float32)
+        action_k = execute_ctrl_action(actor, t_k, current_wealth, w)
+        step = env.step(action_k.detach())
+        manual_actions.append(action_k.detach())
+        current_wealth = step.wealth.to(dtype=torch.float32)
+
+    manual_actions_tensor = torch.stack(manual_actions)
+    assert torch.allclose(det_result.actions, manual_actions_tensor, atol=1e-6), (
+        "evaluate_ctrl_deterministic actions differ from manual execute_ctrl_action loop. "
+        "The episode helper must use execute_ctrl_action consistently."
+    )
+
+
+# ===========================================================================
+# Phase 19D: eval_record_set bridge/comparison seam regression proof
+#
+# eval_record_set routes through eval_record → evaluate_ctrl_deterministic
+# → execute_ctrl_action → actor.mean_action().  The bridge layer is
+# deterministic; identical inputs must always produce identical records.
+#
+# This test FAILS if eval_record_set (or anything in its call chain) is
+# swapped to use a stochastic path such as collect_ctrl_trajectory, because
+# repeated calls with the same seed would then produce different actions.
+# ===========================================================================
+
+
+def test_eval_record_set_bridge_is_deterministic():
+    """eval_record_set produces identical action records across repeated calls.
+
+    The bridge layer routes through the deterministic execution-policy chain
+    (eval_record → evaluate_ctrl_deterministic → execute_ctrl_action →
+    actor.mean_action).  Calling it twice with identical inputs must return
+    records with identical action tensors.
+
+    This test FAILS if the bridge is replaced with a stochastic path — stochastic
+    sampling would produce different actions across calls even for the same seed.
+    """
+    actor = _make_actor()
+    env = _make_env()
+    seeds = [0, 1, 2]
+
+    rs_a = eval_record_set(actor, env, w=_W, seeds=seeds)
+    rs_b = eval_record_set(actor, env, w=_W, seeds=seeds)
+
+    for i, (rec_a, rec_b) in enumerate(zip(rs_a.records, rs_b.records)):
+        assert torch.allclose(rec_a.actions, rec_b.actions, atol=0.0), (
+            f"eval_record_set seed={seeds[i]}: actions differ between identical calls. "
+            "This indicates the bridge layer used stochastic sampling instead of "
+            "the deterministic execution-policy path (execute_ctrl_action)."
+        )

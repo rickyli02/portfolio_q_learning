@@ -65,8 +65,9 @@ def eval_summary(
     into a ``CTRLEvalSummary``.  No tensor objects are retained.
 
     Args:
-        actor:          Policy satisfying ``ActorBase``; only ``mean_action``
-                        is used (deterministic execution policy).
+        actor:          Policy satisfying ``ActorBase``; routes through
+                        ``evaluate_ctrl_deterministic`` → ``execute_ctrl_action``
+                        → ``actor.mean_action()`` (deterministic execution policy).
         env:            Portfolio environment.
         w:              Outer-loop target-wealth Lagrange parameter.
         target_return_z: Optional target terminal wealth z.  When provided,

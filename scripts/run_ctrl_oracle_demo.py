@@ -113,9 +113,9 @@ def main() -> int:
     )
 
     print(
-        f"CTRL-vs-oracle demo: training "
-        f"(n_outer_iters={_N_OUTER_ITERS}, n_updates={_N_UPDATES}, "
-        f"seed={_BASE_SEED}) then evaluating on seeds {_EVAL_SEEDS}"
+        f"CTRL-vs-oracle demo: training with stochastic behavior policy "
+        f"(n_outer_iters={_N_OUTER_ITERS}, n_updates={_N_UPDATES}, seed={_BASE_SEED}), "
+        f"then evaluating with deterministic execution policy on seeds {_EVAL_SEEDS}"
     )
     result = train_and_compare(
         trainer=trainer,

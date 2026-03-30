@@ -8,7 +8,7 @@ This file should be treated as an implementation roadmap, not a paper note.
 
 ## Current snapshot
 
-As of 2026-03-29:
+As of 2026-03-30:
 
 - Phase 1 scaffold exists.
 - Phase 2 config/data foundation exists.
@@ -58,37 +58,56 @@ As of 2026-03-29:
 - Phase 17C dtype-sensitivity comparison foundation is approved.
 - Phase 17D dtype-comparison demo/report seam is approved.
 - Phase 18A train-compare scalar report foundation is approved.
+- Phase 18B report-backed oracle demo alignment is approved.
+- Phase 19A behavior-vs-execution policy contract test and documentation foundation is approved.
+- Phase 19B named deterministic execution helper seam is approved.
+- Phase 19C demo/report wording alignment for policy roles is approved.
+- Phase 19D bridge/comparison seam adoption cleanup is approved.
+- Phase 20A config-backed train-and-compare runner foundation is approved.
+- Phase 20B YAML-driven experiment script consumer is approved.
 - Latest verified outputs with current repo state are:
+  - current full-suite verification:
+    - `.venv/bin/python3 -m pytest -q -> 895 passed, 1 warning`
+  - current smoke verification:
+    - `.venv/bin/python3 scripts/run_smoke_test.py -> 9/9 passed`
   - current backtest comparison verification:
-    - `tests/unit/test_backtest_comparison.py -q -> 15 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_backtest_comparison.py -q --tb=short -> 15 passed`
   - current trainer-to-backtest bridge verification:
-    - `tests/unit/test_train_compare.py -q -> 17 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_train_compare.py -q --tb=short -> 17 passed`
   - current train-compare scalar report verification:
-    - `tests/unit/test_train_compare_report.py -q -> 16 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_train_compare_report.py -q --tb=short -> 16 passed`
+  - current demo script verification:
+    - `.venv/bin/python3 -m pytest tests/unit/test_demo_scripts.py -q --tb=short -> 14 passed`
+  - current policy-contract verification:
+    - `.venv/bin/python3 -m pytest tests/unit/test_policy_contract.py -q --tb=short -> 13 passed`
   - current trainer stress verification:
-    - `tests/unit/test_trainer_stress.py -q -> 12 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_trainer_stress.py -q --tb=short -> 12 passed`
   - current trainer-step verification:
-    - `tests/unit/test_ctrl_trainer.py -q -> 222 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_ctrl_trainer.py -q --tb=short -> 222 passed`
   - current numerics verification:
-    - `tests/unit/test_numerics.py -q -> 38 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_numerics.py -q --tb=short -> 38 passed`
   - current model verification:
-    - `tests/unit/test_models.py -q -> 49 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_models.py -q --tb=short -> 49 passed`
   - current oracle verification:
-    - `tests/unit/test_oracle.py -q -> 42 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_oracle.py -q --tb=short -> 42 passed`
   - current dtype comparison verification:
-    - `tests/unit/test_dtype_compare.py -q -> 24 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare.py -q --tb=short -> 24 passed`
   - current dtype demo verification:
-    - `tests/unit/test_dtype_compare_demo.py -q -> 11 passed`
-  - current full unit-suite verification:
-    - `python -m pytest -> 856 passed, 1 warning`
-  - latest directly confirmed smoke:
-    - `scripts/run_smoke_test.py -> 9/9 passed`
+    - `.venv/bin/python3 -m pytest tests/unit/test_dtype_compare_demo.py -q --tb=short -> 11 passed`
+  - current config verification:
+    - `.venv/bin/python3 -m pytest tests/unit/test_config.py -q --tb=short -> 33 passed`
+  - current experiment-runner verification:
+    - `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short -> 22 passed`
+  - current config-script verification:
+    - `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short -> 20 passed`
+  - current config-script sanity run:
+    - `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml -> exits 0`
   - current normalized import-timing artifact:
     - `numpy ~= 0.069s`
     - `torch ~= 0.859s`
 - The currently active bounded task in dialogue is:
-  - Phase 18B report-backed oracle demo alignment
-  - objective: make `scripts/run_ctrl_oracle_demo.py` consume `summarize_train_compare(...)` so the approved report seam is exercised by a real demo consumer
+  - Phase 20C minimal run-artifact persistence seam
+  - objective: add the smallest useful saved-output layer for the approved config-backed runner/script path by persisting the compact scalar report and the resolved config
 - The active RL implementation target is still:
   - oracle benchmark from known synthetic parameters first
   - Huang–Jia–Zhou (2025) theorem-aligned CTRL baseline next
@@ -100,10 +119,11 @@ As of 2026-03-29:
   - do not keep extending the eval layer by default
   - prefer the next bounded tasks to consume the approved eval stack in a real workflow
   - highest-value next directions are:
-    - connect trainer output to the approved backtest/eval comparison seam
-    - add an end-to-end experiment/evaluation script
+    - add an end-to-end experiment/evaluation runner
+    - add a YAML/script consumer over that runner
+    - add minimal run-artifact persistence over the approved runner/script path
     - only then consider additional reporting/plotting consumers
-- Follow-through after Phase 16A / 16B:
+  - Follow-through after Phase 16A / 16B:
   - the first backtest consumer now exists under `src/backtest/`
   - trainer/demo stress coverage now exercises the correct trainer-facing stateful shell boundary
   - the Phase 16C bridge now combines training and deterministic CTRL-vs-oracle comparison in one bounded consumer
@@ -111,12 +131,17 @@ As of 2026-03-29:
     - smoke hardening for both demo entrypoints
     - numerical diagnostics and dtype-comparison utilities
     - a compact scalar report over `train_and_compare(...)`
-  - the current assigned consumer task is to align the oracle demo with the approved scalar report seam
+    - explicit policy-contract documentation and the named deterministic execution helper seam
+    - wording cleanup for demo/report consumers
+    - bridge/comparison seam adoption cleanup across deterministic consumers
+  - the current approved consumer chain now includes:
+    - config-backed experiment runner under `src/backtest/experiment_runner.py`
+    - YAML-driven manual script consumer under `scripts/run_config_experiment.py`
+    - the current assigned consumer task is to add the minimal run-artifact persistence seam over that path
 - Reference-gap analysis from the 2026-03-29 documentation review:
   - Tier 1 theorem/correctness gaps still missing:
     - parameter projection sets for actor/critic parameters (`K_{θ,n}`, `K_{1,n}`, `K_{2,n}`)
     - explicit verification that the actor update path matches the paper's `φ₂^{-1}` increment rather than only being "close in spirit"
-    - stronger enforcement/documentation of stochastic behavior policy for training versus deterministic execution policy for reported performance
   - Tier 2 practical online gaps still missing:
     - TD(λ) eligibility traces
     - one-step incremental gradient updates
@@ -125,19 +150,37 @@ As of 2026-03-29:
     - explicit leverage-limit layer
     - named off-policy learning seam
   - Tier 3 infrastructure status:
-    - replay buffer and synthetic data modules remain stubs
-    - experiment/config-dispatch runner is still absent
+    - replay buffer and synthetic data modules exist but remain minimal baseline utilities rather than rich experiment pipelines
+    - experiment/config-dispatch runner foundation now exists under `src/backtest/experiment_runner.py`
+    - the first YAML/script consumer now exists under `scripts/run_config_experiment.py`
+    - minimal run-artifact persistence is still missing
     - plotting/logging infrastructure remains absent or stub-level
   - Tier 4 research extensions remain design-stage only:
     - richer synthetic environments
     - WRDS real-data path
     - transaction-cost realism
+    - options/implied-volatility features
     - multi-agent synthetic market
-- Pending follow-up TODO items identified by review and not yet implemented:
+- Pending follow-up TODO items identified by review and brainstorming and not yet implemented:
   - expand the CTRL pseudocode note with a more explicit trace-formula pointer from the companion notes
   - add concrete memory-pressure capture guidance to logging / plotting work
   - normalize trainer/test module naming and headers before broader trainer infrastructure hardens
   - add stronger optimizer roundtrip coverage once trainer work uses nontrivial optimizer state beyond simple SGD
+  - define the staged alternative synthetic-data stress ladder:
+    - time-varying drift/volatility
+    - jump-diffusion
+    - stochastic volatility
+    - heavy-tail / GARCH-like regimes
+    - non-Markov or memory-bearing variants
+  - define the first leakage-safe WRDS real-data experiment contract:
+    - liquid US equities first
+    - daily frequency first
+    - explicit observability / timestamp / anti-leakage rules
+  - clarify the transaction-cost realism taxonomy before implementation:
+    - proportional costs
+    - fixed fees
+    - slippage
+    - temporary vs permanent impact
 - Process reminder:
   - when a bounded task adds a new dedicated test file, Claude's verification request should explicitly list that file's direct pytest command rather than relying only on `tests/unit`
   - when a task defines the target pipeline in terms of a specific public/stateful API boundary, tests should exercise that boundary directly rather than a lower-level helper

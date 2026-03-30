@@ -28,6 +28,14 @@ class CTRLTrainCompareReport:
     Flattens the key scalars from ``CTRLTrainCompareResult`` into a single
     flat dataclass for easy inspection.  All fields are plain Python scalars.
 
+    Policy-role note: fields derived from the training run
+    (``post_training_w``, ``last_n_updates``, ``last_terminal_wealth``)
+    reflect the stochastic behavior policy used during data collection.
+    Fields derived from the comparison
+    (``ctrl_mean_terminal_wealth``, ``oracle_mean_terminal_wealth``,
+    ``mean_terminal_wealth_delta``, ``ctrl_win_rate``) reflect the
+    deterministic execution policy evaluated post-training.
+
     Attributes:
         post_training_w:              Outer-loop Lagrange multiplier after
                                       training (``post_training_snapshot.current_w``).

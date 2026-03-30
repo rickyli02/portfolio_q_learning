@@ -227,6 +227,36 @@ def collect_ctrl_trajectory(
     )
 
 
+def execute_ctrl_action(
+    actor: ActorBase,
+    t: float | torch.Tensor,
+    wealth: torch.Tensor,
+    w: float,
+) -> torch.Tensor:
+    """Return the deterministic execution action û = −φ₁·(x−w) at one step.
+
+    THEOREM-ALIGNED: calls ``actor.mean_action`` under ``torch.no_grad()``,
+    which is the deterministic execution policy used for evaluation and
+    comparison against the oracle (Huang–Jia–Zhou 2025, §2).
+
+    This is the execution policy, NOT the behavior policy.  It has no
+    stochastic component; the same ``(t, wealth, w)`` always produces the
+    same action.  Use ``actor.sample(...)`` for behavior-policy data
+    collection.
+
+    Args:
+        actor:  Policy satisfying ``ActorBase``; only ``mean_action`` is used.
+        t:      Current time, scalar or tensor.
+        wealth: Current portfolio wealth tensor.
+        w:      Outer-loop Lagrange / target-wealth parameter.
+
+    Returns:
+        Detached deterministic action tensor from ``actor.mean_action``.
+    """
+    with torch.no_grad():
+        return actor.mean_action(t, wealth, w)
+
+
 def evaluate_ctrl_deterministic(
     actor: ActorBase,
     env: PortfolioEnv,
@@ -262,10 +292,7 @@ def evaluate_ctrl_deterministic(
 
     for k in range(env.n_steps):
         t_k = torch.tensor(k * dt, dtype=torch.float32, device=device)
-
-        with torch.no_grad():
-            action_k = actor.mean_action(t_k, current_wealth, w)
-
+        action_k = execute_ctrl_action(actor, t_k, current_wealth, w)
         step = env.step(action_k.detach())
         next_wealth = step.wealth.to(dtype=torch.float32, device=device)
 
