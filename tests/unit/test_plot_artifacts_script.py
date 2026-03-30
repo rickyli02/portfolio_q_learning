@@ -185,6 +185,15 @@ def test_plot_stdout_contains_oracle_mean_tw():
     assert "oracle_mean_tw" in out
 
 
+def test_plot_success_stderr_is_empty():
+    """Successful runs should produce no Python-level warning noise on stderr."""
+    with tempfile.TemporaryDirectory() as tmp:
+        report_p, cfg_p = _make_artifacts(tmp)
+        out_img = Path(tmp) / "comparison.png"
+        _, _, err = _run_plot([str(report_p), str(cfg_p), str(out_img)])
+    assert err == ""
+
+
 # ---------------------------------------------------------------------------
 # Failure paths — missing artifacts
 # ---------------------------------------------------------------------------

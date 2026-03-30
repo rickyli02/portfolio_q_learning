@@ -14,9 +14,9 @@ As of 2026-03-30, the repository includes:
 - Gaussian actor and quadratic critic implementations under `src/models/`
 - CTRL rollout, objective, loss, deterministic execution, and trainer-state code under `src/algos/` and `src/train/`
 - deterministic evaluation records, aggregates, bundles, and IO helpers under `src/eval/`
-- CTRL-vs-oracle comparison, train-and-compare bridging, compact scalar reporting, and a config-backed experiment runner under `src/backtest/`
+- CTRL-vs-oracle comparison, train-and-compare bridging, compact scalar reporting, a config-backed experiment runner, and minimal saved-artifact IO helpers under `src/backtest/`
 - diagnostic dtype-comparison utilities under `src/utils/dtype_compare.py`
-- small demo, verification, and YAML-driven experiment entrypoints under `scripts/`
+- small demo, verification, YAML-driven experiment, artifact-inspection, and plotting entrypoints under `scripts/`
 
 The repo now makes the policy-role split explicit:
 
@@ -47,6 +47,14 @@ Run the main verification entrypoints:
 
 If your local environment exposes `.venv/bin/python` instead of `.venv/bin/python3`, use whichever interpreter exists.
 
+Minimal saved-artifact workflow:
+
+```bash
+.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml outputs/run_01
+.venv/bin/python3 scripts/run_inspect_artifacts.py outputs/run_01/report.json outputs/run_01/resolved_config.yaml
+.venv/bin/python3 scripts/run_plot_artifacts.py outputs/run_01/report.json outputs/run_01/resolved_config.yaml outputs/run_01/comparison.png
+```
+
 ## Repository Map
 
 ```text
@@ -63,7 +71,9 @@ portfolio_q_learning/
 │   ├── run_ctrl_oracle_demo.py
 │   ├── run_config_experiment.py
 │   ├── run_dtype_compare_demo.py
+│   ├── run_inspect_artifacts.py
 │   ├── run_long_verification.py
+│   ├── run_plot_artifacts.py
 │   └── run_smoke_test.py
 ├── shared_agent_files/
 │   ├── claude_code_todo.md
@@ -96,8 +106,13 @@ Current directly checked results on this branch:
 - `.venv/bin/python3 -m pytest tests/unit/test_policy_contract.py -q --tb=short` -> `13 passed`
 - `.venv/bin/python3 -m pytest tests/unit/test_config.py -q --tb=short` -> `33 passed`
 - `.venv/bin/python3 -m pytest tests/unit/test_experiment_runner.py -q --tb=short` -> `22 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short` -> `22 passed`
 - `.venv/bin/python3 -m pytest tests/unit/test_config_experiment_script.py -q --tb=short` -> `20 passed`
-- `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml` -> exits `0`
+- `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short` -> `21 passed`
+- `.venv/bin/python3 -m pytest tests/unit/test_plot_artifacts_script.py -q --tb=short` -> `26 passed`
+- `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml <temp_output_dir>` -> exits `0`
+- `.venv/bin/python3 scripts/run_inspect_artifacts.py <temp_output_dir>/report.json <temp_output_dir>/resolved_config.yaml` -> exits `0`
+- `.venv/bin/python3 scripts/run_plot_artifacts.py <temp_output_dir>/report.json <temp_output_dir>/resolved_config.yaml <temp_output_dir>/comparison.png` -> exits `0`, stderr empty
 
 The single current warning in the full suite is from the intentional numerics-boundary test around `QuadraticCritic.quad`.
 
@@ -109,13 +124,16 @@ The single current warning in the full suite is from the intentional numerics-bo
 - `src/backtest/comparison.py` compares CTRL and oracle policies over explicit evaluation seeds.
 - `src/backtest/train_compare.py` and `src/backtest/train_compare_report.py` provide a train-then-compare seam plus a compact scalar report.
 - `src/backtest/experiment_runner.py` provides a config-backed experiment runner for the currently supported GBM + CTRL baseline path.
-- `scripts/run_config_experiment.py` loads a YAML config, runs the approved experiment runner, and prints a stable scalar summary for manual use.
+- `src/backtest/experiment_io.py` saves `report.json` and `resolved_config.yaml` in simple human-readable formats.
+- `scripts/run_config_experiment.py` loads a YAML config, runs the approved experiment runner, prints a stable scalar summary, and can optionally save those two artifacts.
+- `scripts/run_inspect_artifacts.py` reads saved artifacts back and prints a stable inspection summary.
+- `scripts/run_plot_artifacts.py` reads saved artifacts back and writes a simple CTRL-vs-oracle comparison PNG.
 
 ## Not Yet Implemented
 
-- saved experiment/report artifacts beyond console summaries
+- generalized experiment directory management beyond the current minimal `report.json` + `resolved_config.yaml` seam
 - real-data ingestion paths such as WRDS
-- plotting/report artifact generation beyond console summaries
+- richer plotting/report generation beyond the current single comparison PNG
 - transaction-cost-aware evaluation and execution realism
 - richer synthetic stress environments beyond the current GBM baseline
 - the later practical online improvements from the reference papers

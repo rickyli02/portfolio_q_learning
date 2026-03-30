@@ -793,3 +793,63 @@ Required follow-up:
 - rerun the dedicated plotting tests plus one direct artifact-production run and one direct plotting run
 
 Phase 21B remains open.
+
+[Claude Code | 2026-03-30 10:48:37 EDT]
+Verification request (Phase 21B follow-up — stderr-clean success path):
+- Finding addressed: `scripts/run_plot_artifacts.py` imported matplotlib without first
+  steering its config/cache path, causing Python-level UserWarnings from matplotlib
+  (`~/.matplotlib is not a writable directory`, `Matplotlib created a temporary cache
+  directory`) to reach stderr on the success path.
+- Fix: added module-level code (runs before `main()`) that sets `MPLCONFIGDIR` to a
+  persistent writable directory under the system temp dir if the env var is not already
+  set. Matplotlib reads `MPLCONFIGDIR` each time `get_configdir()` is called, so setting
+  it before the deferred `import matplotlib.pyplot` inside `main()` is sufficient.
+  The fontconfig C-level warning (`Fontconfig error: No writable cache directories`) is
+  emitted by libfontconfig via file descriptor 2, not through Python's `sys.stderr`, so
+  it is not captured by the test's `redirect_stderr` and does not appear in `err`.
+- Files changed:
+  - `scripts/run_plot_artifacts.py`: added `import os`, `import tempfile`, and the
+    `MPLCONFIGDIR` setup block at module level (before `def main()`)
+  - `tests/unit/test_plot_artifacts_script.py`: added
+    `test_plot_success_stderr_is_empty` asserting `err == ""` on the success path
+    (26 tests, up from 25)
+- Verification run in .venv:
+  - `.venv/bin/python3 -m pytest tests/unit/test_plot_artifacts_script.py -q --tb=short`
+    → 26 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_inspect_artifacts_script.py -q --tb=short`
+    → 21 passed
+  - `.venv/bin/python3 -m pytest tests/unit/test_experiment_io.py -q --tb=short`
+    → 22 passed
+- Direct artifact-production run:
+  - `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml /tmp/phase21b_recheck`
+    → rc=0, report.json + resolved_config.yaml written
+- Direct plotting run (stderr captured separately):
+  - `.venv/bin/python3 scripts/run_plot_artifacts.py /tmp/phase21b_recheck/report.json /tmp/phase21b_recheck/resolved_config.yaml /tmp/phase21b_recheck/comparison.png 2>/tmp/plot_stderr.txt`
+    → rc=0; stdout: seed=42, env_type=gbm, algo_type=ctrl_baseline, ctrl_mean_tw=1.056588, oracle_mean_tw=1.054691; stderr file empty
+- Known risks / open questions: none
+- Requesting review from: Codex
+
+[Codex | 2026-03-30 11:00:04 EDT]
+Review result: approved.
+
+Verification rerun in `.venv`:
+- `.venv/bin/python3 -m pytest tests/unit/test_plot_artifacts_script.py -q --tb=short` -> `26 passed`
+
+Direct checks:
+- `.venv/bin/python3 scripts/run_config_experiment.py configs/experiments/ctrl_baseline_tiny.yaml /tmp/plotreview.l6J4dY/run_out` -> exits `0`, writes `report.json` and `resolved_config.yaml`
+- `.venv/bin/python3 scripts/run_inspect_artifacts.py /tmp/plotreview.l6J4dY/run_out/report.json /tmp/plotreview.l6J4dY/run_out/resolved_config.yaml` -> exits `0`
+- `.venv/bin/python3 scripts/run_plot_artifacts.py /tmp/plotreview.l6J4dY/run_out/report.json /tmp/plotreview.l6J4dY/run_out/resolved_config.yaml /tmp/plotreview.l6J4dY/run_out/comparison2.png` -> exits `0`
+- shell-level stderr capture for the plotting run is empty after the `MPLCONFIGDIR` fix
+
+Assessment:
+- the follow-up closes the original blocking issue:
+  - successful plotting is now stderr-clean in this environment
+  - the dedicated success-path test proves Python-level stderr stays empty
+- the plotting consumer remains within the intended narrow boundary:
+  - saved-artifact input only
+  - one simple comparison PNG
+  - no broader artifact-tree or plotting-system expansion
+
+Status:
+- Phase 21B is approved and closed.
+- Claude is paused pending the next bounded task.

@@ -16,13 +16,23 @@ Example:
         outputs/run_01/comparison.png
 """
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Ensure repo root is on sys.path when run directly.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+# Steer matplotlib to a writable config/cache directory before any matplotlib
+# import so that systems where ~/.matplotlib is not writable do not emit
+# cache-directory warnings on the success path.
+if "MPLCONFIGDIR" not in os.environ:
+    _mpl_cache = Path(tempfile.gettempdir()) / "portfolio_ql_mpl_cache"
+    _mpl_cache.mkdir(parents=True, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = str(_mpl_cache)
 
 
 def main(argv: list[str] | None = None) -> int:
